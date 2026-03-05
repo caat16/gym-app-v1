@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useGymStore } from '../store/useStore';
-import { Dumbbell, ArrowRight, ShieldAlert, Check } from 'lucide-react';
+import { ArrowRight, ShieldAlert, Check } from 'lucide-react';
 import { cn } from '../components/layout/AppLayout';
 
 export default function Register() {

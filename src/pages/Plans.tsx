@@ -27,7 +27,7 @@ export default function Plans() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-                {plans.map((plan, index) => {
+                {plans.map((plan) => {
                     const isCurrent = plan.id === currentPlanId && currentUser?.role !== 'trainer';
                     // Make Plan Híbrido and Power Plate pop out more as premium options
                     const isPremium = plan.name.includes('Híbrido') || plan.name.includes('Power');
