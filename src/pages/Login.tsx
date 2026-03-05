@@ -5,19 +5,26 @@ import { Dumbbell, ArrowRight } from 'lucide-react';
 
 export default function Login() {
     const [ci, setCi] = useState('');
-    const [error, setError] = useState(false);
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
     const { loginWithCI } = useGymStore();
     const navigate = useNavigate();
 
     const handleLogin = (e: React.FormEvent) => {
         e.preventDefault();
+        setError('');
         if (!ci.trim()) return;
+
+        if (password !== '1234') {
+            setError('Clave incorrecta. Por favor intente nuevamente.');
+            return;
+        }
 
         const success = loginWithCI(ci);
         if (success) {
-            navigate('/');
+            navigate('/app');
         } else {
-            setError(true);
+            setError('CI no encontrado. Verifica tu número o haz clic en "Inscribirme".');
         }
     };
 
@@ -44,12 +51,24 @@ export default function Login() {
                         <input
                             type="text"
                             value={ci}
-                            onChange={(e) => { setCi(e.target.value); setError(false); }}
+                            onChange={(e) => { setCi(e.target.value); setError(''); }}
                             className="w-full bg-slate-900 border border-slate-700 rounded-xl py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-[#39ff14] focus:border-transparent placeholder-slate-500 font-mono text-lg tracking-wider"
                             placeholder="Ej: 12345678"
                             required
                         />
-                        {error && <p className="text-red-400 text-xs mt-2 font-medium">CI no encontrado. Verifica tu número o haz clic en "Inscribirme".</p>}
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">Clave de Acceso</label>
+                        <input
+                            type="password"
+                            value={password}
+                            onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-xl py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-[#39ff14] focus:border-transparent placeholder-slate-500 font-mono text-lg tracking-wider"
+                            placeholder="****"
+                            required
+                        />
+                        {error && <p className="text-red-400 text-xs mt-2 font-medium">{error}</p>}
                     </div>
 
                     <div className="flex flex-col gap-3">

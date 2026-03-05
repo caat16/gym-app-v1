@@ -186,7 +186,7 @@ const MOCK_CLASSES: ClassSession[] = [
 ];
 
 export const useGymStore = create<GymStore>((set) => ({
-    currentUser: MOCK_USERS[0], // Logged in as student by default
+    currentUser: null, // Logged in as student by default
     users: MOCK_USERS,
     plans: PLANS,
     classes: MOCK_CLASSES,

@@ -14,7 +14,7 @@ export default function Plans() {
         }
         subscribePlan(planId);
         alert('¡Te has suscrito al plan exitosamente!');
-        navigate('/');
+        navigate('/app');
     };
 
     const currentPlanId = currentUser?.subscription?.planId;

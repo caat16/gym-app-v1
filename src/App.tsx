@@ -11,16 +11,17 @@ function App() {
     <BrowserRouter>
       <Routes>
         {/* Public Routes */}
-        <Route path="/login" element={<Login />} />
+        <Route path="/" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
         {/* Protected Routes directly handled inside AppLayout mostly via HomeDashboard */}
-        <Route path="/" element={<AppLayout />}>
+        <Route path="/app" element={<AppLayout />}>
           <Route index element={<HomeDashboard />} />
           <Route path="classes" element={<Classes />} />
           <Route path="plans" element={<Plans />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/app" replace />} />
         </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   )

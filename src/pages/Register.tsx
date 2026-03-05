@@ -60,7 +60,7 @@ export default function Register() {
         loginWithCI(formData.ci);
 
         // Redirect to plans page to pick a plan
-        navigate('/plans');
+        navigate('/app/plans');
     };
 
     return (

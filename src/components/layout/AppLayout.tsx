@@ -17,7 +17,7 @@ export default function AppLayout() {
 
     useEffect(() => {
         if (!currentUser) {
-            navigate('/login');
+            navigate('/');
         }
     }, [currentUser, navigate]);
 
@@ -26,9 +26,9 @@ export default function AppLayout() {
     const isStudent = currentUser.role === 'student';
 
     const navItems = [
-        { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-        { name: isStudent ? 'Mis Clases' : 'Clases', path: '/classes', icon: CalendarDays },
-        { name: 'Planes', path: '/plans', icon: ClipboardList },
+        { name: 'Dashboard', path: '/app', icon: LayoutDashboard },
+        { name: isStudent ? 'Mis Clases' : 'Clases', path: '/app/classes', icon: CalendarDays },
+        { name: 'Planes', path: '/app/plans', icon: ClipboardList },
     ];
 
     return (
@@ -113,7 +113,7 @@ export default function AppLayout() {
                     <button
                         onClick={() => {
                             useGymStore.getState().logout();
-                            navigate('/login');
+                            navigate('/');
                         }}
                         className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-red-400 transition-colors text-sm font-medium border border-slate-700 hover:border-slate-500 mt-4 h-10"
                     >
