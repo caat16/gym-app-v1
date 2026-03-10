@@ -5,7 +5,6 @@ import { Dumbbell, ArrowRight } from 'lucide-react';
 
 export default function Login() {
     const [ci, setCi] = useState('');
-    const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const { loginWithCI } = useGymStore();
     const navigate = useNavigate();
@@ -14,11 +13,6 @@ export default function Login() {
         e.preventDefault();
         setError('');
         if (!ci.trim()) return;
-
-        if (password !== '1234') {
-            setError('Clave incorrecta. Por favor intente nuevamente.');
-            return;
-        }
 
         const success = loginWithCI(ci);
         if (success) {
@@ -56,18 +50,6 @@ export default function Login() {
                             placeholder="Ej: 12345678"
                             required
                         />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-2">Clave de Acceso</label>
-                        <input
-                            type="password"
-                            value={password}
-                            onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                            className="w-full bg-slate-900 border border-slate-700 rounded-xl py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-[#39ff14] focus:border-transparent placeholder-slate-500 font-mono text-lg tracking-wider"
-                            placeholder="****"
-                            required
-                        />
                         {error && <p className="text-red-400 text-xs mt-2 font-medium">{error}</p>}
                     </div>
 
@@ -98,7 +80,7 @@ export default function Login() {
                 <p className="text-xs text-slate-500 mt-6 text-center">
                     Si no tienes cuenta, el sistema te redirigirá a la pantalla de registro de forma automática.
                     <br /><br />
-                    <span className="text-slate-400 font-mono">Demo: Alumno=12345678 | Entrenador=87654321</span>
+                    <span className="text-slate-400 font-mono">Demo: Alumno=12345678 | Entrenador=87654321 | Admin=1234</span>
                 </p>
             </div>
         </div>

@@ -103,7 +103,7 @@ export const PLANS: Plan[] = [
 const MOCK_USERS: User[] = [
     {
         id: 'u0',
-        ci: '12345',
+        ci: '1234',
         role: 'admin',
         name: 'Administrador',
         lastName: 'Gymflow',
