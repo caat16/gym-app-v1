@@ -4,20 +4,28 @@ import { cn } from '../components/layout/AppLayout';
 import { useNavigate } from 'react-router-dom';
 
 export default function Plans() {
-    const { plans, currentUser, subscribePlan } = useGymStore();
+    const { plans, currentUser, subscribePlan, loading } = useGymStore();
     const navigate = useNavigate();
 
-    const handleSubscribe = (planId: string) => {
+    const handleSubscribe = async (planId: string) => {
         if (currentUser?.role === 'trainer') {
             alert('Los entrenadores no pueden suscribirse a planes.');
             return;
         }
-        subscribePlan(planId);
+        await subscribePlan(planId);
         alert('¡Te has suscrito al plan exitosamente!');
         navigate('/app');
     };
 
     const currentPlanId = currentUser?.subscription?.planId;
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-[50vh]">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#39ff14]"></div>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-8">

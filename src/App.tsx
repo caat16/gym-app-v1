@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AppLayout from './components/layout/AppLayout';
 import HomeDashboard from './pages/HomeDashboard';
@@ -9,11 +9,20 @@ import Register from './pages/Register';
 import { useGymStore } from './store/useStore';
 
 function App() {
-  const { fetchInitialData } = useGymStore();
+  const { fetchInitialData, loading } = useGymStore();
+  const [isInit, setIsInit] = useState(false);
 
   useEffect(() => {
-    fetchInitialData();
+    fetchInitialData().then(() => setIsInit(true));
   }, [fetchInitialData]);
+
+  if (!isInit || loading) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#39ff14]"></div>
+      </div>
+    );
+  }
 
   return (
     <BrowserRouter>

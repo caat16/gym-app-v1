@@ -28,13 +28,13 @@ export default function Register() {
         setStep(2);
     };
 
-    const handleFinishRegister = () => {
+    const handleFinishRegister = async () => {
         if (!waiverSigned) {
             alert('Debes aceptar el contrato de exoneración para continuar.');
             return;
         }
 
-        registerStudent({
+        await registerStudent({
             ci: formData.ci,
             name: formData.name,
             lastName: formData.lastName,
@@ -43,7 +43,7 @@ export default function Register() {
         });
 
         // Login directly after registration
-        loginWithCI(formData.ci);
+        await loginWithCI(formData.ci);
 
         // Redirect to plans page to pick a plan
         navigate('/app/plans');
