@@ -4,7 +4,7 @@ import { cn } from '../components/layout/AppLayout';
 import { useNavigate } from 'react-router-dom';
 
 export default function Plans() {
-    const { plans, currentUser, subscribePlan, loading } = useGymStore();
+    const { plans, currentUser, loading } = useGymStore();
     const navigate = useNavigate();
 
     const handleSubscribe = async (planId: string) => {
@@ -12,9 +12,8 @@ export default function Plans() {
             alert('Los entrenadores no pueden suscribirse a planes.');
             return;
         }
-        await subscribePlan(planId);
-        alert('¡Te has suscrito al plan exitosamente!');
-        navigate('/app');
+
+        navigate(`/app/payment/${planId}`);
     };
 
     const currentPlanId = currentUser?.subscription?.planId;

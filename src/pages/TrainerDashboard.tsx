@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useGymStore } from '../store/useStore';
 import type { ClassSession } from '../store/useStore';
-import { Users, Calendar, PlusCircle, Search, Trophy, Medal, CheckSquare, Square, AlertTriangle, Trash2 } from 'lucide-react';
+import { Users, Calendar, PlusCircle, Search, Trophy, Medal, CheckSquare, Square, AlertTriangle, Trash2, X } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
 
 export default function TrainerDashboard() {
-    const { classes, users, plans, assignRoutine, addPersonalRecord, markAttendance } = useGymStore();
+    const { classes, users, plans, assignRoutine, addPersonalRecord, markAttendance, createClass, currentUser } = useGymStore();
     const [selectedStudent, setSelectedStudent] = useState('');
     const [routineName, setRoutineName] = useState('');
     // Workout Builder State
@@ -20,6 +20,17 @@ export default function TrainerDashboard() {
     const [viewingPrStudent, setViewingPrStudent] = useState<string | null>(null);
     const [newPrExercise, setNewPrExercise] = useState('');
     const [newPrValue, setNewPrValue] = useState('');
+
+    // Class Modal State
+    const [showClassModal, setShowClassModal] = useState(false);
+    const [isSubmittingClass, setIsSubmittingClass] = useState(false);
+    const [classForm, setClassForm] = useState({
+        name: '',
+        date: new Date().toISOString().split('T')[0],
+        startTime: '18:00',
+        endTime: '19:00',
+        capacity: 15
+    });
 
     // Formatear hora: c.startTime -> '18:00'
     const formatTime = (isoString: string) => {
@@ -78,6 +89,32 @@ export default function TrainerDashboard() {
         alert('Marca personal (PR) añadida.');
     };
 
+    const handleCreateClass = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSubmittingClass(true);
+
+        const startDateTime = new Date(`${classForm.date}T${classForm.startTime}`);
+        const endDateTime = new Date(`${classForm.date}T${classForm.endTime}`);
+
+        await createClass({
+            name: classForm.name,
+            instructor: currentUser?.name || 'Entrenador',
+            startTime: startDateTime.toISOString(),
+            endTime: endDateTime.toISOString(),
+            capacity: classForm.capacity
+        });
+
+        setIsSubmittingClass(false);
+        setShowClassModal(false);
+        setClassForm({
+            name: '',
+            date: new Date().toISOString().split('T')[0],
+            startTime: '18:00',
+            endTime: '19:00',
+            capacity: 15
+        });
+    };
+
     const students = users.filter(u => u.role === 'student');
 
     const filteredStudents = students.filter(s => {
@@ -101,7 +138,7 @@ export default function TrainerDashboard() {
     const studentForPr = users.find(u => u.id === viewingPrStudent);
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 relative">
             <header>
                 <h2 className="text-3xl font-bold tracking-tight text-white mb-2">Panel del Entrenador</h2>
                 <p className="text-slate-400">Gestión de asistencias y rutinas de alumnos.</p>
@@ -110,16 +147,24 @@ export default function TrainerDashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
                 {/* Asistencia por clase */}
-                <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2 bg-slate-700/50 rounded-lg text-[#ff6a00]">
-                            <Calendar className="w-6 h-6" />
+                <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl relative min-h-[300px]">
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-slate-700/50 rounded-lg text-[#ff6a00]">
+                                <Calendar className="w-6 h-6" />
+                            </div>
+                            <h3 className="font-semibold text-white">Clases de Hoy</h3>
                         </div>
-                        <h3 className="font-semibold text-white">Clases de Hoy</h3>
+                        <button
+                            onClick={() => setShowClassModal(true)}
+                            className="flex items-center gap-1.5 text-xs font-bold bg-[#ff6a00]/20 text-[#ff6a00] hover:bg-[#ff6a00] hover:text-white px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                            <PlusCircle className="w-4 h-4" /> Añadir
+                        </button>
                     </div>
 
                     <div className="space-y-4">
-                        {classes.map((c: ClassSession) => (
+                        {classes.length > 0 ? classes.map((c: ClassSession) => (
                             <div key={c.id} className="bg-slate-700/30 rounded-xl border border-slate-700 p-4 transition-all hover:border-slate-500">
                                 <div className="flex justify-between items-start mb-2">
                                     <div>
@@ -164,7 +209,12 @@ export default function TrainerDashboard() {
                                     </div>
                                 )}
                             </div>
-                        ))}
+                        )) : (
+                            <div className="h-full flex flex-col items-center justify-center p-8 bg-slate-900/30 border border-dashed border-slate-700 rounded-xl">
+                                <Calendar className="w-10 h-10 text-slate-600 mb-3" />
+                                <p className="text-slate-400">No hay clases programadas.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -434,6 +484,75 @@ export default function TrainerDashboard() {
                     </div>
                 )}
 
+                {/* Modal Crear Clase */}
+                {showClassModal && (
+                    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                        <div className="bg-[#1e293b] border border-slate-700 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-fade-in">
+                            <div className="flex justify-between items-center p-4 border-b border-slate-700 bg-slate-800/50">
+                                <h3 className="font-bold text-white flex items-center gap-2">
+                                    <Calendar className="w-5 h-5 text-[#ff6a00]" /> Programar Clase
+                                </h3>
+                                <button onClick={() => setShowClassModal(false)} className="text-slate-400 hover:text-white">
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                            <form onSubmit={handleCreateClass} className="p-6 space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-1">Nombre de la Clase</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={classForm.name}
+                                        onChange={e => setClassForm({ ...classForm, name: e.target.value })}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3 text-white focus:ring-1 focus:ring-[#ff6a00]"
+                                        placeholder="Ej. CrossFit Mañana"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Hora Inicio</label>
+                                        <input
+                                            type="time"
+                                            required
+                                            value={classForm.startTime}
+                                            onChange={e => setClassForm({ ...classForm, startTime: e.target.value })}
+                                            className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3 text-white focus:ring-1 focus:ring-[#ff6a00]"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Hora Fin</label>
+                                        <input
+                                            type="time"
+                                            required
+                                            value={classForm.endTime}
+                                            onChange={e => setClassForm({ ...classForm, endTime: e.target.value })}
+                                            className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3 text-white focus:ring-1 focus:ring-[#ff6a00]"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-1">Capacidad (Cupos)</label>
+                                    <input
+                                        type="number"
+                                        required
+                                        min="1"
+                                        value={classForm.capacity}
+                                        onChange={e => setClassForm({ ...classForm, capacity: parseInt(e.target.value) })}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3 text-white focus:ring-1 focus:ring-[#ff6a00]"
+                                    />
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={isSubmittingClass}
+                                    className="w-full mt-4 py-3 rounded-xl font-bold bg-[#ff6a00] hover:bg-orange-500 text-white disabled:opacity-50 transition-colors"
+                                >
+                                    {isSubmittingClass ? 'Guardando...' : 'Crear Clase'}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

@@ -8,6 +8,8 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import { useGymStore } from './store/useStore';
 
+import PaymentGateway from './pages/PaymentGateway';
+
 function App() {
   const { fetchInitialData, loading } = useGymStore();
   const [isInit, setIsInit] = useState(false);
@@ -36,6 +38,7 @@ function App() {
           <Route index element={<HomeDashboard />} />
           <Route path="classes" element={<Classes />} />
           <Route path="plans" element={<Plans />} />
+          <Route path="payment/:planId" element={<PaymentGateway />} />
           <Route path="*" element={<Navigate to="/app" replace />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

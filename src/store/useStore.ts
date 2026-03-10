@@ -87,10 +87,12 @@ interface GymStore {
     registerStudent: (student: Omit<User, 'id' | 'role' | 'biometrics' | 'personalRecords' | 'subscription' | 'waiverSigned'>) => Promise<void>;
     registerTrainer: (trainerData: Omit<User, 'id' | 'role' | 'biometrics' | 'personalRecords' | 'waiverSigned'>) => Promise<void>;
     assignRoutine: (routine: Omit<Routine, 'id'>) => Promise<void>;
+    createClass: (classData: Omit<ClassSession, 'id' | 'enrolledStudents' | 'attendedStudents'>) => Promise<void>;
     updateClassCapacity: (classId: string, capacity: number) => Promise<void>;
     enrollClass: (classId: string) => Promise<void>;
     cancelClass: (classId: string) => Promise<void>;
     addPersonalRecord: (studentId: string, record: Omit<PersonalRecord, 'id'>) => Promise<void>;
+    addBiometrics: (studentId: string, data: Omit<BiometricRecord, 'id'>) => Promise<void>;
     markAttendance: (classId: string, studentId: string) => Promise<void>;
 }
 
@@ -111,12 +113,31 @@ export const useGymStore = create<GymStore>((set, get) => ({
             // Descargar Rutinas
             const { data: dbRoutines } = await supabase.from('routines').select('*');
 
+            // Descargar Clases
+            const { data: dbClasses } = await supabase.from('classes').select(`
+                *,
+                class_enrollments (
+                    user_id,
+                    attended
+                )
+            `);
+
             // Descargar Usuarios Básicos
             const { data: dbUsers } = await supabase.from('users').select('*');
 
             set({
                 plans: dbPlans || [],
                 routines: dbRoutines || [],
+                classes: dbClasses ? dbClasses.map(c => ({
+                    id: c.id,
+                    name: c.name,
+                    instructor: c.instructor,
+                    startTime: c.start_time,
+                    endTime: c.end_time,
+                    capacity: c.capacity,
+                    enrolledStudents: c.class_enrollments?.map((e: any) => e.user_id) || [],
+                    attendedStudents: c.class_enrollments?.filter((e: any) => e.attended).map((e: any) => e.user_id) || [],
+                })) : [],
                 users: dbUsers ? dbUsers.map(u => ({
                     id: u.id,
                     ci: u.ci,
@@ -293,12 +314,152 @@ export const useGymStore = create<GymStore>((set, get) => ({
         // Implementar actualización real después
         set((state) => ({ classes: state.classes.map(c => c.id === classId ? { ...c, capacity } : c) }));
     },
-    enrollClass: async (_classId) => {
+
+    createClass: async (classData) => {
+        try {
+            const newClass = {
+                name: classData.name,
+                instructor: classData.instructor,
+                start_time: classData.startTime,
+                end_time: classData.endTime,
+                capacity: classData.capacity
+            };
+
+            const { data, error } = await supabase.from('classes').insert([newClass]).select().single();
+            if (data && !error) {
+                set((state) => ({
+                    classes: [...state.classes, {
+                        id: data.id,
+                        name: data.name,
+                        instructor: data.instructor,
+                        startTime: data.start_time,
+                        endTime: data.end_time,
+                        capacity: data.capacity,
+                        enrolledStudents: [],
+                        attendedStudents: []
+                    }]
+                }));
+            }
+        } catch (error) {
+            console.error('Error creating class', error);
+        }
     },
-    cancelClass: async (_classId) => {
+
+    enrollClass: async (classId) => {
+        const state = get();
+        if (!state.currentUser) return;
+
+        try {
+            const { error } = await supabase.from('class_enrollments').insert([
+                { class_id: classId, user_id: state.currentUser.id }
+            ]);
+
+            if (!error) {
+                set((state) => ({
+                    classes: state.classes.map(c =>
+                        c.id === classId
+                            ? { ...c, enrolledStudents: [...c.enrolledStudents, state.currentUser!.id] }
+                            : c
+                    )
+                }));
+            }
+        } catch (error) {
+            console.error('Error enrolling class', error);
+        }
     },
-    addPersonalRecord: async (_studentId, _record) => {
+    cancelClass: async (classId) => {
+        const state = get();
+        if (!state.currentUser) return;
+
+        try {
+            const { error } = await supabase
+                .from('class_enrollments')
+                .delete()
+                .match({ class_id: classId, user_id: state.currentUser.id });
+
+            if (!error) {
+                set((state) => ({
+                    classes: state.classes.map(c =>
+                        c.id === classId
+                            ? { ...c, enrolledStudents: c.enrolledStudents.filter(id => id !== state.currentUser!.id) }
+                            : c
+                    )
+                }));
+            }
+        } catch (error) {
+            console.error('Error canceling class', error);
+        }
     },
+    addPersonalRecord: async (studentId, record) => {
+        try {
+            const newRecord = {
+                user_id: studentId,
+                date: record.date,
+                exercise_name: record.exerciseName,
+                value: record.value,
+                unit: record.unit
+            };
+            const { data, error } = await supabase.from('personal_records').insert([newRecord]).select().single();
+
+            if (data && !error) {
+                set((state) => {
+                    if (state.currentUser?.id === studentId) {
+                        return {
+                            currentUser: {
+                                ...state.currentUser,
+                                personalRecords: [...state.currentUser.personalRecords, {
+                                    id: data.id,
+                                    date: data.date,
+                                    exerciseName: data.exercise_name,
+                                    value: data.value,
+                                    unit: data.unit
+                                }]
+                            }
+                        };
+                    }
+                    return state;
+                });
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    },
+
+    addBiometrics: async (studentId, data: Omit<BiometricRecord, 'id'>) => {
+        try {
+            const newBiometric = {
+                user_id: studentId,
+                date: data.date,
+                weight: data.weight,
+                height: data.height,
+                bmi: data.bmi
+            };
+            const { data: dbData, error } = await supabase.from('biometrics').insert([newBiometric]).select().single();
+
+            if (dbData && !error) {
+                set((state) => {
+                    if (state.currentUser?.id === studentId) {
+                        return {
+                            currentUser: {
+                                ...state.currentUser,
+                                biometrics: [{
+                                    id: dbData.id,
+                                    date: dbData.date,
+                                    weight: dbData.weight,
+                                    height: dbData.height,
+                                    bmi: dbData.bmi
+                                }, ...state.currentUser.biometrics]
+                            }
+                        };
+                    }
+                    return state;
+                });
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    },
+
     markAttendance: async (_classId, _studentId) => {
     }
 }));
