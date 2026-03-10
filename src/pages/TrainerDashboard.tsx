@@ -98,7 +98,7 @@ export default function TrainerDashboard() {
 
         await createClass({
             name: classForm.name,
-            instructor: currentUser?.name || 'Entrenador',
+            instructor: currentUser?.id || '',
             startTime: startDateTime.toISOString(),
             endTime: endDateTime.toISOString(),
             capacity: classForm.capacity
@@ -316,6 +316,30 @@ export default function TrainerDashboard() {
                             Crear y Asignar Rutina
                         </button>
                     </form>
+
+                    <div className="mt-8 border-t border-slate-700 pt-6">
+                        <h4 className="text-sm font-semibold text-slate-400 mb-3 flex items-center gap-2">
+                            <CheckSquare className="w-4 h-4" /> Últimas Rutinas Asignadas
+                        </h4>
+                        <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
+                            {useGymStore.getState().routines.length > 0 ? [...useGymStore.getState().routines].reverse().slice(0, 10).map(r => {
+                                const student = students.find(s => s.id === r.assignedTo);
+                                return (
+                                    <div key={r.id} className="bg-slate-900/50 p-3 rounded-lg border border-slate-700 flex justify-between items-center transition-colors hover:border-slate-500">
+                                        <div>
+                                            <p className="font-bold text-white text-sm">{r.name}</p>
+                                            <p className="text-xs text-slate-400">Alumno: <span className="text-slate-300">{student?.name} {student?.lastName || 'Desconocido'}</span></p>
+                                        </div>
+                                        <div className="text-xs bg-[#39ff14]/10 text-[#39ff14] px-2 py-1 rounded font-medium">
+                                            {r.exercises.length} ej.
+                                        </div>
+                                    </div>
+                                );
+                            }) : (
+                                <p className="text-xs text-slate-500 italic text-center py-4">No hay rutinas asignadas recientemente.</p>
+                            )}
+                        </div>
+                    </div>
                 </div>
 
                 {/* Directorio de Alumnos */}

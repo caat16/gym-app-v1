@@ -28,7 +28,7 @@ export default function AppLayout() {
     const navItems = [
         { name: 'Dashboard', path: '/app', icon: LayoutDashboard },
         { name: isStudent ? 'Mis Clases' : 'Clases', path: '/app/classes', icon: CalendarDays },
-        { name: 'Planes', path: '/app/plans', icon: ClipboardList },
+        ...(isStudent ? [{ name: 'Planes', path: '/app/plans', icon: ClipboardList }] : [])
     ];
 
     return (

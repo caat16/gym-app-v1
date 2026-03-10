@@ -127,7 +127,12 @@ export const useGymStore = create<GymStore>((set, get) => ({
 
             set({
                 plans: dbPlans || [],
-                routines: dbRoutines || [],
+                routines: dbRoutines ? dbRoutines.map(r => ({
+                    id: r.id,
+                    name: r.name,
+                    assignedTo: r.assigned_to,
+                    exercises: r.exercises
+                })) : [],
                 classes: dbClasses ? dbClasses.map(c => ({
                     id: c.id,
                     name: c.name,
@@ -237,9 +242,22 @@ export const useGymStore = create<GymStore>((set, get) => ({
 
     assignRoutine: async (routineData) => {
         try {
-            const { data, error } = await supabase.from('routines').insert([routineData]).select().single();
+            const dbRoutine = {
+                name: routineData.name,
+                assigned_to: routineData.assignedTo,
+                exercises: routineData.exercises
+            };
+            const { data, error } = await supabase.from('routines').insert([dbRoutine]).select().single();
             if (data && !error) {
-                set((state) => ({ routines: [...state.routines, data] }));
+                const mappedRoutine: Routine = {
+                    id: data.id,
+                    name: data.name,
+                    assignedTo: data.assigned_to,
+                    exercises: data.exercises
+                };
+                set((state) => ({ routines: [...state.routines, mappedRoutine] }));
+            } else {
+                console.error('Database error assigning routine:', error);
             }
         } catch (error) {
             console.error('Error assigning routine', error);
