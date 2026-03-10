@@ -34,26 +34,12 @@ export default function Register() {
             return;
         }
 
-        const weight = parseFloat(formData.weight);
-        const height = parseFloat(formData.height);
-        const heightInMeters = height / 100;
-        const bmi = parseFloat((weight / (heightInMeters * heightInMeters)).toFixed(1));
-
         registerStudent({
             ci: formData.ci,
             name: formData.name,
             lastName: formData.lastName,
             age: parseInt(formData.age),
-            email: formData.email,
-            waiverSigned: true,
-            biometrics: [{
-                id: `b_${Date.now()}`,
-                date: new Date().toISOString(),
-                weight,
-                height,
-                bmi
-            }],
-            personalRecords: []
+            email: formData.email
         });
 
         // Login directly after registration

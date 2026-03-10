@@ -26,7 +26,7 @@ export default function TrainerDashboard() {
         return new Date(isoString).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
     };
 
-    const handleAssignRoutine = (e: React.FormEvent) => {
+    const handleAssignRoutine = async (e: React.FormEvent) => {
         e.preventDefault();
         const validExercises = exercises.filter(ex => ex.name.trim() !== '');
 
@@ -35,8 +35,7 @@ export default function TrainerDashboard() {
             return;
         }
 
-        assignRoutine({
-            id: `r_${Date.now()}`,
+        await assignRoutine({
             name: routineName,
             assignedTo: selectedStudent,
             exercises: validExercises

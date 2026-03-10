@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { addDays, subDays, setHours, setMinutes } from 'date-fns';
+import { addDays } from 'date-fns';
 
 export type UserRole = 'student' | 'trainer' | 'admin';
 
@@ -67,241 +67,238 @@ export interface Routine {
     exercises: { name: string; sets: number; reps: number }[];
 }
 
+import { supabase } from '../lib/supabase';
+
 interface GymStore {
     currentUser: User | null;
     users: User[];
     plans: Plan[];
     classes: ClassSession[];
     routines: Routine[];
+    loading: boolean;
 
-    // Actions
-    login: (userId: string) => void;
-    loginWithCI: (ci: string) => boolean;
+    // Métodos asíncronos para cargar desde DB
+    fetchInitialData: () => Promise<void>;
+
+    // Actions reescritas para backend
+    loginWithCI: (ci: string) => Promise<boolean>;
     logout: () => void;
-    enrollClass: (classId: string) => void;
-    cancelClass: (classId: string) => void;
-    assignRoutine: (routine: Routine) => void;
-    subscribePlan: (planId: string) => void;
-    registerStudent: (student: Omit<User, 'id' | 'role'>) => void;
-    registerTrainer: (trainerData: Omit<User, 'id' | 'role' | 'biometrics' | 'personalRecords' | 'waiverSigned'>) => void;
-    updateClassCapacity: (classId: string, capacity: number) => void;
-    addPersonalRecord: (studentId: string, record: Omit<PersonalRecord, 'id'>) => void;
-    markAttendance: (classId: string, studentId: string) => void;
+    subscribePlan: (planId: string) => Promise<void>;
+    registerStudent: (student: Omit<User, 'id' | 'role' | 'biometrics' | 'personalRecords' | 'subscription' | 'waiverSigned'>) => Promise<void>;
+    registerTrainer: (trainerData: Omit<User, 'id' | 'role' | 'biometrics' | 'personalRecords' | 'waiverSigned'>) => Promise<void>;
+    assignRoutine: (routine: Omit<Routine, 'id'>) => Promise<void>;
+    updateClassCapacity: (classId: string, capacity: number) => Promise<void>;
+    enrollClass: (classId: string) => Promise<void>;
+    cancelClass: (classId: string) => Promise<void>;
+    addPersonalRecord: (studentId: string, record: Omit<PersonalRecord, 'id'>) => Promise<void>;
+    markAttendance: (classId: string, studentId: string) => Promise<void>;
 }
 
-// Initial Mock Data
-const today = new Date();
+export const useGymStore = create<GymStore>((set, get) => ({
+    currentUser: null,
+    users: [],
+    plans: [],
+    classes: [],
+    routines: [],
+    loading: false,
 
-export const PLANS: Plan[] = [
-    { id: 'p1', name: 'Plan Mujeres', description: 'Entrenamiento enfocado en tonificación y fuerza femenina', price: 29.99, features: ['Acceso total', 'Clases grupales'] },
-    { id: 'p2', name: 'Plan Senior', description: 'Ejercicios de bajo impacto y movilidad para adultos mayores', price: 19.99, features: ['Horario matutino', 'Asesoría especializada'] },
-    { id: 'p3', name: 'Plan Calistenia', description: 'Dominio del peso corporal y gimnasia', price: 34.99, features: ['Zona calistenia', 'Talleres técnicos'] },
-    { id: 'p4', name: 'Plan Híbrido', description: 'Combinación de pesas y entrenamiento funcional', price: 39.99, features: ['Acceso 24/7', 'Rutinas personalizadas'] },
-    { id: 'p5', name: 'Plan Power Plate', description: 'Entrenamiento de fuerza extrema y powerlifting', price: 44.99, features: ['Equipamiento profesional', 'Zona lifting'] },
-];
+    fetchInitialData: async () => {
+        set({ loading: true });
+        try {
+            // Descargar Planes
+            const { data: dbPlans } = await supabase.from('plans').select('*');
 
-const MOCK_USERS: User[] = [
-    {
-        id: 'u0',
-        ci: '1234',
-        role: 'admin',
-        name: 'Administrador',
-        lastName: 'Gymflow',
-        age: 35,
-        email: 'admin@gymflowpro.com',
-        waiverSigned: true,
-        biometrics: [],
-        personalRecords: []
-    },
-    {
-        id: 'u1',
-        ci: '12345678',
-        role: 'student',
-        name: 'Alex',
-        lastName: 'Arandia',
-        age: 28,
-        email: 'alex@example.com',
-        waiverSigned: true,
-        biometrics: [
-            { id: 'b1', date: subDays(today, 60).toISOString(), weight: 75, height: 175, bmi: 24.5 },
-            { id: 'b2', date: subDays(today, 30).toISOString(), weight: 73, height: 175, bmi: 23.8 },
-            { id: 'b3', date: today.toISOString(), weight: 71, height: 175, bmi: 23.2 },
-        ],
-        personalRecords: [
-            { id: 'pr1', date: subDays(today, 10).toISOString(), exerciseName: 'Peso Muerto', value: 100, unit: 'kg' },
-            { id: 'pr2', date: today.toISOString(), exerciseName: 'Peso Muerto', value: 110, unit: 'kg' }
-        ],
-        subscription: {
-            planId: 'p4',
-            startDate: subDays(today, 28).toISOString(),
-            endDate: addDays(today, 2).toISOString(), // Expiring soon (<5 days)
-            status: 'expiring_soon',
+            // Descargar Rutinas
+            const { data: dbRoutines } = await supabase.from('routines').select('*');
+
+            // Descargar Usuarios Básicos
+            const { data: dbUsers } = await supabase.from('users').select('*');
+
+            set({
+                plans: dbPlans || [],
+                routines: dbRoutines || [],
+                users: dbUsers ? dbUsers.map(u => ({
+                    id: u.id,
+                    ci: u.ci,
+                    role: u.role,
+                    name: u.name,
+                    lastName: u.last_name,
+                    age: u.age,
+                    email: u.email,
+                    waiverSigned: u.waiver_signed,
+                    biometrics: [], // We fetch nested later if needed
+                    personalRecords: []
+                })) : [],
+                loading: false
+            });
+        } catch (error) {
+            console.error('Error fetching initial data:', error);
+            set({ loading: false });
         }
     },
-    {
-        id: 't1',
-        ci: '87654321',
-        role: 'trainer',
-        name: 'Carlos',
-        lastName: 'Coach',
-        age: 35,
-        email: 'carlos@gymflow.com',
-        waiverSigned: true,
-        biometrics: [],
-        personalRecords: [],
-    }
-];
 
-const MOCK_CLASSES: ClassSession[] = [
-    {
-        id: 'c1',
-        name: 'Crossfit WOD',
-        instructor: 't1',
-        capacity: 12,
-        startTime: setHours(setMinutes(today, 0), 18).toISOString(),
-        endTime: setHours(setMinutes(today, 0), 19).toISOString(),
-        enrolledStudents: ['u1'], // Alex pre-registered
-        attendedStudents: []
-    },
-    {
-        id: 'c2',
-        name: 'Yoga Flow',
-        instructor: 't1',
-        capacity: 15,
-        startTime: setHours(setMinutes(today, 0), 19).toISOString(),
-        endTime: setHours(setMinutes(today, 0), 20).toISOString(),
-        enrolledStudents: [],
-        attendedStudents: []
-    },
-    {
-        id: 'c3',
-        name: 'Powerlifting',
-        instructor: 't1',
-        capacity: 8,
-        startTime: setHours(setMinutes(today, 0), 20).toISOString(),
-        endTime: setHours(setMinutes(today, 0), 21).toISOString(),
-        enrolledStudents: [],
-        attendedStudents: []
-    }
-];
+    loginWithCI: async (ci) => {
+        try {
+            const { data, error } = await supabase
+                .from('users')
+                .select(`
+                    *,
+                    biometrics (*),
+                    personal_records (*),
+                    subscriptions (*)
+                `)
+                .eq('ci', ci)
+                .single();
 
-export const useGymStore = create<GymStore>((set) => ({
-    currentUser: null, // Logged in as student by default
-    users: MOCK_USERS,
-    plans: PLANS,
-    classes: MOCK_CLASSES,
-    routines: [],
+            if (error || !data) return false;
 
-    login: (userId) => set((state) => ({ currentUser: state.users.find(u => u.id === userId) || null })),
+            // Mapeando a la interfaz real
+            const loggedInUser: User = {
+                id: data.id,
+                ci: data.ci,
+                role: data.role,
+                name: data.name,
+                lastName: data.last_name,
+                age: data.age,
+                email: data.email,
+                waiverSigned: data.waiver_signed,
+                biometrics: data.biometrics || [],
+                personalRecords: data.personal_records || [],
+                subscription: data.subscriptions?.[0] ? {
+                    planId: data.subscriptions[0].plan_id,
+                    startDate: data.subscriptions[0].start_date,
+                    endDate: data.subscriptions[0].end_date,
+                    status: data.subscriptions[0].status,
+                } : undefined
+            };
 
-    loginWithCI: (ci) => {
-        let success = false;
-        set((state) => {
-            const user = state.users.find(u => u.ci === ci);
-            if (user) {
-                success = true;
-                return { currentUser: user };
-            }
-            return state;
-        });
-        return success;
+            set({ currentUser: loggedInUser });
+            return true;
+        } catch (error) {
+            console.error('Error in login:', error);
+            return false;
+        }
     },
 
     logout: () => set({ currentUser: null }),
 
-    enrollClass: (classId) => set((state) => {
-        if (!state.currentUser || state.currentUser.role !== 'student') return state;
-        return {
-            classes: state.classes.map(c => {
-                if (c.id === classId && c.enrolledStudents.length < c.capacity && !c.enrolledStudents.includes(state.currentUser!.id)) {
-                    return { ...c, enrolledStudents: [...c.enrolledStudents, state.currentUser!.id] };
+    subscribePlan: async (planId) => {
+        const state = get();
+        if (!state.currentUser) return;
+
+        try {
+            const newSub = {
+                user_id: state.currentUser.id,
+                plan_id: planId,
+                start_date: new Date().toISOString(),
+                end_date: addDays(new Date(), 30).toISOString(),
+                status: 'active'
+            };
+
+            await supabase.from('subscriptions').insert([newSub]);
+
+            // Update local state optimistic
+            set({
+                currentUser: {
+                    ...state.currentUser,
+                    subscription: {
+                        planId: newSub.plan_id,
+                        startDate: newSub.start_date,
+                        endDate: newSub.end_date,
+                        status: newSub.status as 'active',
+                    }
                 }
-                return c;
-            })
-        };
-    }),
+            });
+        } catch (error) {
+            console.error('Error subscribing:', error);
+        }
+    },
 
-    cancelClass: (classId) => set((state) => {
-        if (!state.currentUser) return state;
-        return {
-            classes: state.classes.map(c =>
-                c.id === classId
-                    ? { ...c, enrolledStudents: c.enrolledStudents.filter(id => id !== state.currentUser!.id) }
-                    : c
-            )
-        };
-    }),
-
-    assignRoutine: (routine) => set((state) => ({
-        routines: [...state.routines, routine]
-    })),
-
-    subscribePlan: (planId) => set((state) => {
-        if (!state.currentUser) return state;
-        const newSub: Subscription = {
-            planId,
-            startDate: new Date().toISOString(),
-            endDate: addDays(new Date(), 30).toISOString(),
-            status: 'active'
-        };
-
-        // Update both currentUser and the user in the array
-        const updatedUser = { ...state.currentUser, subscription: newSub };
-        return {
-            currentUser: updatedUser,
-            users: state.users.map(u => u.id === updatedUser.id ? updatedUser : u),
-        };
-    }),
-
-    registerStudent: (student) => set((state) => {
-        const newUser: User = {
-            ...student,
-            id: `u_${Date.now()}`,
-            role: 'student',
-        };
-        return { users: [...state.users, newUser], currentUser: newUser };
-    }),
-
-    registerTrainer: (trainerData) => set((state) => {
-        const newUser: User = {
-            ...trainerData,
-            id: `u_${Date.now()}`,
-            role: 'trainer',
-            waiverSigned: true,
-            biometrics: [],
-            personalRecords: []
-        };
-        return { users: [...state.users, newUser] };
-    }),
-
-    updateClassCapacity: (classId, capacity) => set((state) => ({
-        classes: state.classes.map(c => c.id === classId ? { ...c, capacity } : c)
-    })),
-
-    addPersonalRecord: (studentId, record) => set((state) => ({
-        users: state.users.map(u => {
-            if (u.id === studentId) {
-                return {
-                    ...u,
-                    personalRecords: [...u.personalRecords, { ...record, id: `pr_${Date.now()} ` }]
-                };
+    assignRoutine: async (routineData) => {
+        try {
+            const { data, error } = await supabase.from('routines').insert([routineData]).select().single();
+            if (data && !error) {
+                set((state) => ({ routines: [...state.routines, data] }));
             }
-            return u;
-        })
-    })),
+        } catch (error) {
+            console.error('Error assigning routine', error);
+        }
+    },
 
-    markAttendance: (classId, studentId) => set((state) => ({
-        classes: state.classes.map(c => {
-            if (c.id === classId) {
-                const alreadyAttended = c.attendedStudents.includes(studentId);
-                return {
-                    ...c,
-                    attendedStudents: alreadyAttended
-                        ? c.attendedStudents.filter(id => id !== studentId)
-                        : [...c.attendedStudents, studentId]
+    registerStudent: async (student) => {
+        try {
+            const { data, error } = await supabase.from('users').insert([{
+                ci: student.ci,
+                role: 'student',
+                name: student.name,
+                last_name: student.lastName,
+                age: student.age,
+                email: student.email,
+                waiver_signed: true
+            }]).select().single();
+
+            if (data && !error) {
+                const newUser: User = {
+                    id: data.id,
+                    ci: data.ci,
+                    role: data.role,
+                    name: data.name,
+                    lastName: data.last_name,
+                    age: data.age,
+                    email: data.email,
+                    waiverSigned: data.waiver_signed,
+                    biometrics: [],
+                    personalRecords: []
                 };
+                set((state) => ({ users: [...state.users, newUser], currentUser: newUser }));
             }
-            return c;
-        })
-    }))
+        } catch (err) {
+            console.error('Error registering student', err);
+        }
+    },
+
+    registerTrainer: async (trainerData) => {
+        try {
+            const { data, error } = await supabase.from('users').insert([{
+                ci: trainerData.ci,
+                role: 'trainer',
+                name: trainerData.name,
+                last_name: trainerData.lastName,
+                age: trainerData.age,
+                email: trainerData.email,
+                waiver_signed: true
+            }]).select().single();
+
+            if (data && !error) {
+                const newUser: User = {
+                    id: data.id,
+                    ci: data.ci,
+                    role: data.role,
+                    name: data.name,
+                    lastName: data.last_name,
+                    age: data.age,
+                    email: data.email,
+                    waiverSigned: data.waiver_signed,
+                    biometrics: [],
+                    personalRecords: []
+                };
+                set((state) => ({ users: [...state.users, newUser] }));
+            }
+        } catch (err) {
+            console.error('Error registering trainer', err);
+        }
+    },
+
+    updateClassCapacity: async (classId, capacity) => {
+        // Implementar actualización real después
+        set((state) => ({ classes: state.classes.map(c => c.id === classId ? { ...c, capacity } : c) }));
+    },
+    enrollClass: async (_classId) => {
+    },
+    cancelClass: async (_classId) => {
+    },
+    addPersonalRecord: async (_studentId, _record) => {
+    },
+    markAttendance: async (_classId, _studentId) => {
+    }
 }));

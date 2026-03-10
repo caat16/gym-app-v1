@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AppLayout from './components/layout/AppLayout';
 import HomeDashboard from './pages/HomeDashboard';
@@ -5,8 +6,15 @@ import Plans from './pages/Plans';
 import Classes from './pages/Classes';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import { useGymStore } from './store/useStore';
 
 function App() {
+  const { fetchInitialData } = useGymStore();
+
+  useEffect(() => {
+    fetchInitialData();
+  }, [fetchInitialData]);
+
   return (
     <BrowserRouter>
       <Routes>

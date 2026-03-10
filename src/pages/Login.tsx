@@ -9,12 +9,12 @@ export default function Login() {
     const { loginWithCI } = useGymStore();
     const navigate = useNavigate();
 
-    const handleLogin = (e: React.FormEvent) => {
+    const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
         if (!ci.trim()) return;
 
-        const success = loginWithCI(ci);
+        const success = await loginWithCI(ci);
         if (success) {
             navigate('/app');
         } else {
