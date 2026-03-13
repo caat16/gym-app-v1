@@ -539,6 +539,16 @@ export default function TrainerDashboard() {
                                         placeholder="Ej. CrossFit Mañana"
                                     />
                                 </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-1">Fecha de la Clase</label>
+                                    <input
+                                        type="date"
+                                        required
+                                        value={classForm.date}
+                                        onChange={e => setClassForm({ ...classForm, date: e.target.value })}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3 text-white focus:ring-1 focus:ring-[#ff6a00]"
+                                    />
+                                </div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
                                         <label className="block text-sm font-medium text-slate-300 mb-1">Hora Inicio</label>

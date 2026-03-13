@@ -26,6 +26,10 @@ export default function Classes() {
         alert('Has cancelado tu inscripción en la clase.');
     };
 
+    const visibleClasses = isStudent
+        ? classes.filter((c: ClassSession) => new Date(c.startTime) > new Date())
+        : classes;
+
     return (
         <div className="space-y-8 animate-fade-in">
             <header className="mb-8">
@@ -36,7 +40,7 @@ export default function Classes() {
             </header>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {classes.map((c: ClassSession) => {
+                {visibleClasses.length > 0 ? visibleClasses.map((c: ClassSession) => {
                     const isFull = c.enrolledStudents.length >= c.capacity;
                     const isEnrolled = currentUser ? c.enrolledStudents.includes(currentUser.id) : false;
                     const instructor = users.find(u => u.id === c.instructor);
@@ -139,7 +143,11 @@ export default function Classes() {
                             )}
                         </div>
                     )
-                })}
+                }) : (
+                    <div className="col-span-full py-12 text-center text-slate-500 bg-slate-800/50 rounded-2xl border border-slate-700 border-dashed">
+                        No hay clases futuras programadas en este momento.
+                    </div>
+                )}
             </div>
         </div>
     );

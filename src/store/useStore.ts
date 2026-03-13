@@ -122,13 +122,13 @@ export const useGymStore = create<GymStore>((set, get) => ({
             const { data: dbClasses } = await supabase.from('classes').select(`
                 *,
                 class_enrollments (
-                    user_id,
+                    student_id,
                     attended
                 )
             `);
 
-            // Descargar Usuarios Básicos
-            const { data: dbUsers } = await supabase.from('users').select('*');
+            // Descargar Usuarios Básicos con suscripciones
+            const { data: dbUsers } = await supabase.from('users').select('*, subscriptions(*)');
 
             set({
                 plans: dbPlans || [],
@@ -141,12 +141,12 @@ export const useGymStore = create<GymStore>((set, get) => ({
                 classes: dbClasses ? dbClasses.map(c => ({
                     id: c.id,
                     name: c.name,
-                    instructor: c.instructor,
+                    instructor: c.instructor_id,
                     startTime: c.start_time,
                     endTime: c.end_time,
                     capacity: c.capacity,
-                    enrolledStudents: c.class_enrollments?.map((e: any) => e.user_id) || [],
-                    attendedStudents: c.class_enrollments?.filter((e: any) => e.attended).map((e: any) => e.user_id) || [],
+                    enrolledStudents: c.class_enrollments?.map((e: any) => e.student_id) || [],
+                    attendedStudents: c.class_enrollments?.filter((e: any) => e.attended).map((e: any) => e.student_id) || [],
                 })) : [],
                 users: dbUsers ? dbUsers.map(u => ({
                     id: u.id,
@@ -158,7 +158,13 @@ export const useGymStore = create<GymStore>((set, get) => ({
                     email: u.email,
                     waiverSigned: u.waiver_signed,
                     biometrics: [], // We fetch nested later if needed
-                    personalRecords: []
+                    personalRecords: [],
+                    subscription: u.subscriptions?.find((sub: any) => sub.status === 'active' || sub.status === 'expiring_soon') ? {
+                        planId: u.subscriptions.find((sub: any) => sub.status === 'active' || sub.status === 'expiring_soon').plan_id,
+                        startDate: u.subscriptions.find((sub: any) => sub.status === 'active' || sub.status === 'expiring_soon').start_date,
+                        endDate: u.subscriptions.find((sub: any) => sub.status === 'active' || sub.status === 'expiring_soon').end_date,
+                        status: u.subscriptions.find((sub: any) => sub.status === 'active' || sub.status === 'expiring_soon').status,
+                    } : undefined
                 })) : [],
                 loading: false
             });
@@ -342,7 +348,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
         try {
             const newClass = {
                 name: classData.name,
-                instructor: classData.instructor,
+                instructor_id: classData.instructor,
                 start_time: classData.startTime,
                 end_time: classData.endTime,
                 capacity: classData.capacity
@@ -374,7 +380,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
 
         try {
             const { error } = await supabase.from('class_enrollments').insert([
-                { class_id: classId, user_id: state.currentUser.id }
+                { class_id: classId, student_id: state.currentUser.id }
             ]);
 
             if (!error) {
@@ -398,7 +404,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
             const { error } = await supabase
                 .from('class_enrollments')
                 .delete()
-                .match({ class_id: classId, user_id: state.currentUser.id });
+                .match({ class_id: classId, student_id: state.currentUser.id });
 
             if (!error) {
                 set((state) => ({
