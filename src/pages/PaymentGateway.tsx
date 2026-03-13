@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { QrCode, ShieldCheck, ArrowLeft, Loader2 } from 'lucide-react';
+import { QrCode, ShieldCheck, ArrowLeft, Loader2, Download, Landmark } from 'lucide-react';
 import { useGymStore } from '../store/useStore';
 
 export default function PaymentGateway() {
@@ -33,6 +33,10 @@ export default function PaymentGateway() {
         navigate('/app');
     };
 
+    const handleDownloadQR = () => {
+        alert('Se iniciará la descarga del código QR...');
+    };
+
     return (
         <div className="flex flex-col items-center justify-center py-10 px-4 animate-fade-in">
             <button
@@ -48,7 +52,7 @@ export default function PaymentGateway() {
 
                 <div className="text-center mb-8">
                     <h2 className="text-2xl font-bold text-white mb-2">Finalizar Suscripción</h2>
-                    <p className="text-slate-400 text-sm">Escanea el código QR para transferir el pago del plan seleccionado.</p>
+                    <p className="text-slate-400 text-sm">Escanea el código QR o transfiere a la cuenta bancaria para pagar el plan seleccionado.</p>
                 </div>
 
                 {/* Plan Summary Card */}
@@ -63,11 +67,38 @@ export default function PaymentGateway() {
                     </div>
                 </div>
 
-                {/* QR Code Mockup */}
-                <div className="bg-white p-6 rounded-2xl mx-auto w-48 h-48 flex items-center justify-center shadow-[0_0_40px_rgba(57,255,20,0.1)] mb-8 transition-transform hover:scale-105 duration-300 ease-in-out">
-                    <div className="relative">
-                        <QrCode className="w-full h-full text-slate-900" style={{ width: '150px', height: '150px' }} />
-                        <div className="absolute inset-0 border-4 border-slate-100/50 mix-blend-overlay"></div>
+                {/* QR Code Mockup and Download */}
+                <div className="flex flex-col items-center mb-6 gap-4">
+                    <div className="bg-white p-6 rounded-2xl mx-auto w-48 h-48 flex items-center justify-center shadow-[0_0_40px_rgba(57,255,20,0.1)] transition-transform hover:scale-105 duration-300 ease-in-out">
+                        <div className="relative">
+                            <QrCode className="w-full h-full text-slate-900" style={{ width: '150px', height: '150px' }} />
+                            <div className="absolute inset-0 border-4 border-slate-100/50 mix-blend-overlay"></div>
+                        </div>
+                    </div>
+
+                    <button onClick={handleDownloadQR} className="flex items-center gap-2 text-sm font-bold text-[#39ff14] hover:text-green-400 bg-[#39ff14]/10 hover:bg-[#39ff14]/20 px-4 py-2 rounded-full transition-colors">
+                        <Download className="w-4 h-4" /> Descargar QR
+                    </button>
+                </div>
+
+                {/* Bank Details */}
+                <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-8 shadow-inner">
+                    <h4 className="flex items-center gap-2 text-white font-medium mb-3 border-b border-slate-700 pb-2 text-sm">
+                        <Landmark className="w-4 h-4 text-[#ff6a00]" /> Datos para Transferencia
+                    </h4>
+                    <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                            <span className="text-slate-400">Banco</span>
+                            <span className="font-semibold text-white">Banco Bisa</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-slate-400">Nro. de Cuenta</span>
+                            <span className="font-mono text-[#39ff14] font-bold text-base">12222</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-slate-400">Titular</span>
+                            <span className="font-semibold text-white">Gymflow Pro S.R.L.</span>
+                        </div>
                     </div>
                 </div>
 

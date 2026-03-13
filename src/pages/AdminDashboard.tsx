@@ -1,28 +1,51 @@
 import { useState } from 'react';
 import { useGymStore } from '../store/useStore';
-import { ShieldAlert, UserPlus, Users } from 'lucide-react';
+import { ShieldAlert, UserPlus, Users, DollarSign, Activity, Trash2, CalendarDays, Dumbbell, Clock } from 'lucide-react';
+import { differenceInDays } from 'date-fns';
 
 export default function AdminDashboard() {
-    const { registerTrainer, users } = useGymStore();
+    const {
+        users, plans, classes, routines,
+        registerTrainer, deleteUser, deleteClass, deleteRoutine
+    } = useGymStore();
+
+    // Formularios
     const [name, setName] = useState('');
     const [lastName, setLastName] = useState('');
     const [email, setEmail] = useState('');
     const [ci, setCi] = useState('');
 
     const trainers = users.filter(u => u.role === 'trainer');
+    const students = users.filter(u => u.role === 'student');
+
+    // Panel Financiero
+    const activeStudents = students.filter(s => {
+        if (!s.subscription) return false;
+        const days = differenceInDays(new Date(s.subscription.endDate), new Date());
+        return days > 0;
+    });
+
+    const revenue = activeStudents.reduce((sum, student) => {
+        const plan = plans.find(p => p.id === student.subscription?.planId);
+        return sum + (plan?.price || 0);
+    }, 0);
+
+    const planCounts = plans.map(plan => ({
+        ...plan,
+        count: activeStudents.filter(s => s.subscription?.planId === plan.id).length
+    }));
 
     const handleRegisterTrainer = (e: React.FormEvent) => {
         e.preventDefault();
         if (!name || !lastName || !email || !ci) return;
 
-        // Check if CI already exists
         const exists = users.find(u => u.ci === ci);
         if (exists) {
             alert('Ya existe un usuario con ese Carnet de Identidad en el sistema.');
             return;
         }
 
-        registerTrainer({ name, lastName, email, ci, age: 30 }); // Default age for simplicity
+        registerTrainer({ name, lastName, email, ci, age: 30 });
         alert(`Entrenador ${name} ${lastName} registrado exitosamente. Puede ingresar con el CI: ${ci}`);
 
         setName('');
@@ -31,112 +54,241 @@ export default function AdminDashboard() {
         setCi('');
     };
 
+    const confirmDeleteUser = (id: string, name: string) => {
+        if (window.confirm(`¿Seguro que deseas ELIMINAR al usuario ${name}? Esta acción es irreversible.`)) {
+            deleteUser(id);
+        }
+    };
+
+    const confirmDeleteClass = (id: string, name: string) => {
+        if (window.confirm(`¿Seguro que deseas ELIMINAR la clase ${name} y desuscribir a todos?`)) {
+            deleteClass(id);
+        }
+    };
+
+    const confirmDeleteRoutine = (id: string, name: string) => {
+        if (window.confirm(`¿Seguro que deseas ELIMINAR la rutina ${name}?`)) {
+            deleteRoutine(id);
+        }
+    };
+
+    const formatShortDateTime = (iso: string) => {
+        return new Date(iso).toLocaleDateString('es-ES', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    };
+
     return (
-        <div className="space-y-6">
-            <header className="flex items-center gap-3 mb-6">
-                <div className="p-3 bg-purple-500/20 rounded-xl">
-                    <ShieldAlert className="w-8 h-8 text-purple-400" />
+        <div className="space-y-8 animate-fade-in relative pb-12">
+            <header className="flex items-center gap-3 mb-8 border-b border-slate-700/50 pb-6">
+                <div className="p-4 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl shadow-[0_0_30px_rgba(168,85,247,0.3)]">
+                    <ShieldAlert className="w-8 h-8 text-white" />
                 </div>
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight text-white mb-1">Panel de Administración</h2>
-                    <p className="text-slate-400">Poder de Super Usuario: Alta de instructores y gestión de staff.</p>
+                    <h2 className="text-3xl font-bold tracking-tight text-white mb-1">Centro de Comando Admin</h2>
+                    <p className="text-slate-400">Poder de Super Usuario: Finanzas, Operaciones y Gestión General.</p>
                 </div>
             </header>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Registro de Entrenador */}
-                <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl h-fit">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2 bg-slate-700/50 rounded-lg text-[#39ff14]">
-                            <UserPlus className="w-6 h-6" />
-                        </div>
-                        <h3 className="font-semibold text-white">Registrar Nuevo Entrenador</h3>
+            {/* Panel Financiero */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-[#39ff14] opacity-5 rounded-bl-full translate-x-8 -translate-y-8"></div>
+                    <div className="flex items-center gap-3 mb-2">
+                        <DollarSign className="w-5 h-5 text-[#39ff14]" />
+                        <h3 className="font-semibold text-slate-300">Revenue (Activo)</h3>
                     </div>
-
-                    <form onSubmit={handleRegisterTrainer} className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-1">Nombre</label>
-                                <input
-                                    type="text"
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 px-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent placeholder-slate-500"
-                                    placeholder="Ej. Carlos"
-                                    required
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-1">Apellido</label>
-                                <input
-                                    type="text"
-                                    value={lastName}
-                                    onChange={(e) => setLastName(e.target.value)}
-                                    className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 px-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent placeholder-slate-500"
-                                    placeholder="Ej. Mendez"
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-slate-300 mb-1">Correo Electrónico</label>
-                            <input
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 px-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent placeholder-slate-500"
-                                placeholder="entrenador@gymflowpro.com"
-                                required
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-slate-300 mb-1">Carnet de Identidad (Para el Login)</label>
-                            <input
-                                type="text"
-                                value={ci}
-                                onChange={(e) => setCi(e.target.value)}
-                                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 px-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent placeholder-slate-500 font-mono"
-                                placeholder="Ej. 12345678"
-                                required
-                            />
-                        </div>
-
-                        <button
-                            type="submit"
-                            className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-4 rounded-lg transition-colors mt-4 shadow-lg shadow-purple-900/20"
-                        >
-                            Crear Cuenta de Entrenador
-                        </button>
-                    </form>
+                    <p className="text-4xl font-black text-white group-hover:text-[#39ff14] transition-colors">{revenue.toLocaleString('es-ES', { minimumFractionDigits: 2 })}<span className="text-lg text-slate-500 ml-1">Bs</span></p>
+                    <p className="text-xs text-slate-400 mt-2">Acumulado por planes vigentes</p>
                 </div>
 
-                {/* Directorio de Entrenadores */}
-                <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl h-fit">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2 bg-slate-700/50 rounded-lg text-blue-400">
-                            <Users className="w-6 h-6" />
-                        </div>
-                        <h3 className="font-semibold text-white">Staff Actual ({trainers.length})</h3>
+                <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500 opacity-5 rounded-bl-full translate-x-8 -translate-y-8"></div>
+                    <div className="flex items-center gap-3 mb-2">
+                        <Activity className="w-5 h-5 text-blue-400" />
+                        <h3 className="font-semibold text-slate-300">Alumnos Activos</h3>
                     </div>
+                    <p className="text-4xl font-black text-white group-hover:text-blue-400 transition-colors">{activeStudents.length}</p>
+                    <p className="text-xs text-slate-400 mt-2">De un total de {students.length} registrados</p>
+                </div>
 
-                    <div className="space-y-3">
-                        {trainers.map(trainer => (
-                            <div key={trainer.id} className="bg-slate-900/50 p-4 rounded-xl border border-slate-700 flex justify-between items-center group hover:border-slate-500 transition-colors">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-slate-700 to-slate-600 flex items-center justify-center font-bold text-white shadow-inner">
-                                        {trainer.name.charAt(0)}
-                                    </div>
-                                    <div>
-                                        <p className="font-bold text-white text-md">{trainer.name} {trainer.lastName}</p>
-                                        <p className="text-xs text-slate-400 font-mono">CI: {trainer.ci}</p>
-                                    </div>
-                                </div>
-                                <span className="text-xs bg-purple-500/10 text-purple-400 px-2 py-1 rounded-md font-medium border border-purple-500/20">Active</span>
+                <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl flex flex-col justify-center">
+                    <h3 className="font-semibold text-slate-300 mb-3 text-sm">Distribución por Planes</h3>
+                    <div className="space-y-2">
+                        {planCounts.map(p => (
+                            <div key={p.id} className="flex justify-between items-center text-sm">
+                                <span className="text-slate-400">{p.name}</span>
+                                <span className="font-bold text-white bg-slate-700 px-2 py-0.5 rounded-md">{p.count} alu.</span>
                             </div>
                         ))}
                     </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                {/* Columna Izquierda: Entrenadores */}
+                <div className="space-y-6 lg:col-span-1">
+                    {/* Registro */}
+                    <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="p-2 bg-purple-500/20 rounded-lg text-purple-400">
+                                <UserPlus className="w-6 h-6" />
+                            </div>
+                            <h3 className="font-semibold text-white">Añadir Entrenador</h3>
+                        </div>
+
+                        <form onSubmit={handleRegisterTrainer} className="space-y-3">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-400 mb-1">Nombre</label>
+                                    <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 px-3 text-white focus:ring-1 focus:ring-purple-500" required />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-400 mb-1">Apellido</label>
+                                    <input type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 px-3 text-white focus:ring-1 focus:ring-purple-500" required />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-slate-400 mb-1">Correo</label>
+                                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 px-3 text-white focus:ring-1 focus:ring-purple-500" required />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-slate-400 mb-1">Carnet Identidad (Clave login)</label>
+                                <input type="text" value={ci} onChange={(e) => setCi(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 px-3 text-white focus:ring-1 focus:ring-purple-500 font-mono" required />
+                            </div>
+                            <button type="submit" className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-2.5 px-4 rounded-lg transition-colors mt-2">
+                                Crear Staff
+                            </button>
+                        </form>
+                    </div>
+
+                    {/* Lista Entrenadores */}
+                    <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl">
+                        <div className="flex items-center gap-3 mb-4">
+                            <Users className="w-5 h-5 text-purple-400" />
+                            <h3 className="font-semibold text-white">Staff ({trainers.length})</h3>
+                        </div>
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                            {trainers.map(t => (
+                                <div key={t.id} className="bg-slate-900/50 p-3 rounded-xl border border-slate-700 flex justify-between items-center group">
+                                    <div>
+                                        <p className="font-bold text-white text-sm">{t.name} {t.lastName}</p>
+                                        <p className="text-xs text-slate-500 font-mono">CI: {t.ci}</p>
+                                    </div>
+                                    <button onClick={() => confirmDeleteUser(t.id, t.name)} className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Columna Derecha: Alumnos, Clases y Rutinas */}
+                <div className="space-y-6 lg:col-span-2">
+
+                    {/* Alumnos */}
+                    <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl">
+                        <div className="flex items-center gap-3 mb-4">
+                            <Users className="w-5 h-5 text-blue-400" />
+                            <h3 className="font-semibold text-white">Gestión de Alumnos</h3>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm text-slate-300">
+                                <thead className="bg-slate-900/50 text-slate-400 font-medium">
+                                    <tr>
+                                        <th className="px-3 py-2">Nombre</th>
+                                        <th className="px-3 py-2">CI</th>
+                                        <th className="px-3 py-2">Plan</th>
+                                        <th className="px-3 py-2 text-right">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-700/50">
+                                    {students.slice(0, 10).map(s => {
+                                        const plan = plans.find(p => p.id === s.subscription?.planId);
+                                        const isActive = s.subscription && differenceInDays(new Date(s.subscription.endDate), new Date()) > 0;
+                                        return (
+                                            <tr key={s.id} className="hover:bg-slate-700/20 group">
+                                                <td className="px-3 py-2 font-medium text-white">{s.name} {s.lastName}</td>
+                                                <td className="px-3 py-2 font-mono text-xs">{s.ci}</td>
+                                                <td className="px-3 py-2">
+                                                    <span className={`px-2 py-0.5 rounded text-xs ${isActive ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-slate-400'}`}>
+                                                        {plan ? plan.name : 'Sin Plan'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-3 py-2 text-right">
+                                                    <button onClick={() => confirmDeleteUser(s.id, s.name)} className="text-slate-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        )
+                                    })}
+                                </tbody>
+                            </table>
+                            {students.length > 10 && <p className="text-xs text-center text-slate-500 mt-2 italic">Mostrando últimos 10 alumnos. Utiliza un buscador para el resto (en desarrollo).</p>}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Clases */}
+                        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl">
+                            <div className="flex items-center gap-3 mb-4">
+                                <CalendarDays className="w-5 h-5 text-[#ff6a00]" />
+                                <h3 className="font-semibold text-white">Clases Programadas</h3>
+                            </div>
+                            <div className="space-y-2 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
+                                {classes.map(c => {
+                                    const instructor = users.find(u => u.id === c.instructor);
+                                    return (
+                                        <div key={c.id} className="bg-slate-900/50 p-3 rounded-xl border border-slate-700 group hover:border-slate-500 transition-colors">
+                                            <div className="flex justify-between items-start mb-1">
+                                                <p className="font-bold text-white text-sm truncate pr-2">{c.name}</p>
+                                                <button onClick={() => confirmDeleteClass(c.id, c.name)} className="text-slate-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-xs text-slate-400 mb-1">
+                                                <Clock className="w-3 h-3" /> {formatShortDateTime(c.startTime)}
+                                            </div>
+                                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                <Users className="w-3 h-3" /> Inst: {instructor?.name || 'Sistema'} | Cupos: {c.enrolledStudents.length}/{c.capacity}
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                                {classes.length === 0 && <p className="text-xs text-slate-500 italic text-center py-4">Sin clases activas.</p>}
+                            </div>
+                        </div>
+
+                        {/* Rutinas */}
+                        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl">
+                            <div className="flex items-center gap-3 mb-4">
+                                <Dumbbell className="w-5 h-5 text-blue-500" />
+                                <h3 className="font-semibold text-white">Últimas Rutinas</h3>
+                            </div>
+                            <div className="space-y-2 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
+                                {[...routines].reverse().map(r => {
+                                    const student = users.find(u => u.id === r.assignedTo);
+                                    return (
+                                        <div key={r.id} className="bg-slate-900/50 p-3 rounded-xl border border-slate-700 group hover:border-slate-500 transition-colors">
+                                            <div className="flex justify-between items-start">
+                                                <div className="truncate pr-2">
+                                                    <p className="font-bold text-white text-sm">{r.name}</p>
+                                                    <p className="text-xs text-slate-400 mt-0.5">Para: {student?.name} {student?.lastName}</p>
+                                                    <p className="text-xs text-blue-400 mt-1">{r.exercises.length} ejercicios</p>
+                                                </div>
+                                                <button onClick={() => confirmDeleteRoutine(r.id, r.name)} className="text-slate-500 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                                {routines.length === 0 && <p className="text-xs text-slate-500 italic text-center py-4">No hay rutinas asignadas.</p>}
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </div>

@@ -94,6 +94,11 @@ interface GymStore {
     addPersonalRecord: (studentId: string, record: Omit<PersonalRecord, 'id'>) => Promise<void>;
     addBiometrics: (studentId: string, data: Omit<BiometricRecord, 'id'>) => Promise<void>;
     markAttendance: (classId: string, studentId: string) => Promise<void>;
+
+    // Operaciones CRUD Admin
+    deleteUser: (userId: string) => Promise<void>;
+    deleteClass: (classId: string) => Promise<void>;
+    deleteRoutine: (routineId: string) => Promise<void>;
 }
 
 export const useGymStore = create<GymStore>((set, get) => ({
@@ -479,5 +484,38 @@ export const useGymStore = create<GymStore>((set, get) => ({
     },
 
     markAttendance: async (_classId, _studentId) => {
+    },
+
+    deleteUser: async (userId) => {
+        try {
+            const { error } = await supabase.from('users').delete().eq('id', userId);
+            if (!error) {
+                set((state) => ({ users: state.users.filter(u => u.id !== userId) }));
+            }
+        } catch (error) {
+            console.error('Error deleting user', error);
+        }
+    },
+
+    deleteClass: async (classId) => {
+        try {
+            const { error } = await supabase.from('classes').delete().eq('id', classId);
+            if (!error) {
+                set((state) => ({ classes: state.classes.filter(c => c.id !== classId) }));
+            }
+        } catch (error) {
+            console.error('Error deleting class', error);
+        }
+    },
+
+    deleteRoutine: async (routineId) => {
+        try {
+            const { error } = await supabase.from('routines').delete().eq('id', routineId);
+            if (!error) {
+                set((state) => ({ routines: state.routines.filter(r => r.id !== routineId) }));
+            }
+        } catch (error) {
+            console.error('Error deleting routine', error);
+        }
     }
 }));

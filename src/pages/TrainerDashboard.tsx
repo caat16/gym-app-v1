@@ -164,7 +164,7 @@ export default function TrainerDashboard() {
                     </div>
 
                     <div className="space-y-4">
-                        {classes.length > 0 ? classes.map((c: ClassSession) => (
+                        {classes.filter(c => c.instructor === currentUser?.id).length > 0 ? classes.filter(c => c.instructor === currentUser?.id).map((c: ClassSession) => (
                             <div key={c.id} className="bg-slate-700/30 rounded-xl border border-slate-700 p-4 transition-all hover:border-slate-500">
                                 <div className="flex justify-between items-start mb-2">
                                     <div>
@@ -179,7 +179,7 @@ export default function TrainerDashboard() {
                                 {/* List students with Check-in Controls */}
                                 {c.enrolledStudents.length > 0 ? (
                                     <div className="mt-3 pt-3 border-t border-slate-600/50">
-                                        <p className="text-xs text-slate-400 mb-2">Pase de Lista (Check-in):</p>
+                                        <p className="text-xs text-slate-400 mb-2">Alumnos Inscritos (Check-in):</p>
                                         <div className="space-y-1">
                                             {c.enrolledStudents.map(studentId => {
                                                 const student = users.find(u => u.id === studentId);
@@ -212,7 +212,7 @@ export default function TrainerDashboard() {
                         )) : (
                             <div className="h-full flex flex-col items-center justify-center p-8 bg-slate-900/30 border border-dashed border-slate-700 rounded-xl">
                                 <Calendar className="w-10 h-10 text-slate-600 mb-3" />
-                                <p className="text-slate-400">No hay clases programadas.</p>
+                                <p className="text-slate-400">No has programado clases para hoy.</p>
                             </div>
                         )}
                     </div>
@@ -389,7 +389,7 @@ export default function TrainerDashboard() {
                                 <tr>
                                     <th className="px-4 py-3 rounded-tl-lg">Alumno</th>
                                     <th className="px-4 py-3">CI</th>
-                                    <th className="px-4 py-3">Plan Actual</th>
+                                    <th className="px-4 py-3 text-center">Plan Autorizado (Vencimiento)</th>
                                     <th className="px-4 py-3 text-center rounded-tr-lg">Acciones</th>
                                 </tr>
                             </thead>
@@ -400,8 +400,15 @@ export default function TrainerDashboard() {
                                         <tr key={student.id} className="hover:bg-slate-700/20 transition-colors">
                                             <td className="px-4 py-3 font-medium text-white">{student.name} {student.lastName}</td>
                                             <td className="px-4 py-3 font-mono text-slate-400">{student.ci}</td>
-                                            <td className="px-4 py-3">
-                                                <span className="bg-slate-700 px-2 py-1 rounded text-xs">{plan ? plan.name : 'Sin plan'}</span>
+                                            <td className="px-4 py-3 text-center">
+                                                <div className="flex flex-col items-center">
+                                                    <span className="bg-slate-700 px-2 py-1 rounded text-xs mb-1">{plan ? plan.name : 'Sin plan'}</span>
+                                                    {student.subscription && (
+                                                        <span className={`text-[10px] font-bold ${differenceInDays(new Date(student.subscription.endDate), new Date()) > 0 ? 'text-[#39ff14]' : 'text-red-400'}`}>
+                                                            Vence: {new Date(student.subscription.endDate).toLocaleDateString('es-ES')}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className="px-4 py-3 text-center">
                                                 <button
