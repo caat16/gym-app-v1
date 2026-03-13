@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useGymStore } from '../store/useStore';
 import type { ClassSession } from '../store/useStore';
-import { Users, Calendar, PlusCircle, Search, Trophy, Medal, CheckSquare, Square, AlertTriangle, Trash2, X } from 'lucide-react';
+import { Users, Calendar, PlusCircle, Search, Trophy, Medal, CheckSquare, Square, AlertTriangle, Trash2, X, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
 
 export default function TrainerDashboard() {
@@ -32,9 +32,17 @@ export default function TrainerDashboard() {
         capacity: 15
     });
 
+    // Class Filter
+    const [classFilter, setClassFilter] = useState<'today' | 'upcoming'>('today');
+    const [expandedClassId, setExpandedClassId] = useState<string | null>(null);
+
     // Formatear hora: c.startTime -> '18:00'
     const formatTime = (isoString: string) => {
         return new Date(isoString).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    };
+
+    const formatShortDate = (isoString: string) => {
+        return new Date(isoString).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
     };
 
     const handleAssignRoutine = async (e: React.FormEvent) => {
@@ -148,73 +156,132 @@ export default function TrainerDashboard() {
 
                 {/* Asistencia por clase */}
                 <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl relative min-h-[300px]">
-                    <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-slate-700/50 rounded-lg text-[#ff6a00]">
                                 <Calendar className="w-6 h-6" />
                             </div>
-                            <h3 className="font-semibold text-white">Clases de Hoy</h3>
+                            <h3 className="font-semibold text-white">Gestión de Clases</h3>
                         </div>
                         <button
                             onClick={() => setShowClassModal(true)}
                             className="flex items-center gap-1.5 text-xs font-bold bg-[#ff6a00]/20 text-[#ff6a00] hover:bg-[#ff6a00] hover:text-white px-3 py-1.5 rounded-lg transition-colors"
                         >
-                            <PlusCircle className="w-4 h-4" /> Añadir
+                            <PlusCircle className="w-4 h-4" /> Añadir Clase
+                        </button>
+                    </div>
+
+                    <div className="flex gap-2 mb-6 bg-slate-900/50 p-1 rounded-lg border border-slate-700 w-fit">
+                        <button
+                            onClick={() => setClassFilter('today')}
+                            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${classFilter === 'today' ? 'bg-slate-800 text-white shadow ring-1 ring-slate-700' : 'text-slate-400 hover:text-white'}`}
+                        >
+                            Hoy
+                        </button>
+                        <button
+                            onClick={() => setClassFilter('upcoming')}
+                            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${classFilter === 'upcoming' ? 'bg-slate-800 text-white shadow ring-1 ring-slate-700' : 'text-slate-400 hover:text-white'}`}
+                        >
+                            Próximas
                         </button>
                     </div>
 
                     <div className="space-y-4">
-                        {classes.filter(c => c.instructor === currentUser?.id).length > 0 ? classes.filter(c => c.instructor === currentUser?.id).map((c: ClassSession) => (
-                            <div key={c.id} className="bg-slate-700/30 rounded-xl border border-slate-700 p-4 transition-all hover:border-slate-500">
-                                <div className="flex justify-between items-start mb-2">
-                                    <div>
-                                        <h4 className="font-bold text-lg text-white">{c.name}</h4>
-                                        <p className="text-sm text-slate-400">{formatTime(c.startTime)} - {formatTime(c.endTime)}</p>
+                        {(() => {
+                            const trainerClasses = classes.filter(c => c.instructor === currentUser?.id);
+                            const todayStr = new Date().toISOString().split('T')[0];
+                            const filteredClasses = trainerClasses.filter(c => {
+                                const classDateStr = new Date(c.startTime).toISOString().split('T')[0];
+                                if (classFilter === 'today') {
+                                    return classDateStr === todayStr;
+                                } else {
+                                    return new Date(c.startTime).getTime() > new Date().getTime() && classDateStr !== todayStr;
+                                }
+                            });
+
+                            if (filteredClasses.length === 0) {
+                                return (
+                                    <div className="h-40 flex flex-col items-center justify-center p-8 bg-slate-900/30 border border-dashed border-slate-700 rounded-xl">
+                                        <Calendar className="w-10 h-10 text-slate-600 mb-3" />
+                                        <p className="text-slate-400 text-center">No hay clases asignadas para {classFilter === 'today' ? 'hoy' : 'los próximos días'}.</p>
                                     </div>
-                                    <div className={`px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2 ${c.enrolledStudents.length >= c.capacity ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-[#39ff14]'}`}>
-                                        <Users className="w-4 h-4" />
-                                        {c.enrolledStudents.length} / {c.capacity}
-                                    </div>
-                                </div>
-                                {/* List students with Check-in Controls */}
-                                {c.enrolledStudents.length > 0 ? (
-                                    <div className="mt-3 pt-3 border-t border-slate-600/50">
-                                        <p className="text-xs text-slate-400 mb-2">Alumnos Inscritos (Check-in):</p>
-                                        <div className="space-y-1">
-                                            {c.enrolledStudents.map(studentId => {
-                                                const student = users.find(u => u.id === studentId);
-                                                const hasAttended = c.attendedStudents?.includes(studentId);
-                                                return (
-                                                    <button
-                                                        key={studentId}
-                                                        onClick={() => markAttendance(c.id, studentId)}
-                                                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-left ${hasAttended ? 'bg-[#39ff14]/10 border border-[#39ff14]/30' : 'bg-slate-800 hover:bg-slate-700/80 border border-slate-700/50'}`}
-                                                    >
-                                                        {hasAttended ? (
-                                                            <CheckSquare className="w-5 h-5 text-[#39ff14] flex-shrink-0" />
-                                                        ) : (
-                                                            <Square className="w-5 h-5 text-slate-500 flex-shrink-0" />
-                                                        )}
-                                                        <span className={`text-sm ${hasAttended ? 'text-white' : 'text-slate-300'}`}>
-                                                            {student?.name} {student?.lastName}
-                                                        </span>
-                                                    </button>
-                                                )
-                                            })}
+                                );
+                            }
+
+                            return filteredClasses.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()).map((c: ClassSession) => {
+                                const isExpanded = expandedClassId === c.id;
+                                const isFull = c.enrolledStudents.length >= c.capacity;
+                                return (
+                                    <div key={c.id} className="bg-slate-800 rounded-xl border border-slate-700 p-0 transition-all hover:border-slate-500 overflow-hidden shadow-lg">
+                                        <div
+                                            className="p-4 cursor-pointer flex justify-between items-start bg-slate-700/20 hover:bg-slate-700/40 transition-colors"
+                                            onClick={() => setExpandedClassId(isExpanded ? null : c.id)}
+                                        >
+                                            <div>
+                                                <h4 className="font-bold text-lg text-white mb-1 group-hover:text-[#ff6a00] transition-colors">{c.name}</h4>
+                                                <div className="flex items-center gap-2 text-sm text-slate-400">
+                                                    <span className="flex items-center gap-1.5 bg-slate-800 px-2 py-0.5 rounded border border-slate-700 capitalize">
+                                                        <Calendar className="w-3.5 h-3.5 text-[#ff6a00]" /> {formatShortDate(c.startTime)}
+                                                    </span>
+                                                    <span className="flex items-center gap-1.5 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
+                                                        <Clock className="w-3.5 h-3.5 text-[#39ff14]" /> {formatTime(c.startTime)} - {formatTime(c.endTime)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col items-end gap-2">
+                                                <div className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 border ${isFull ? 'bg-red-500/10 text-red-400 border-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.1)]' : 'bg-[#39ff14]/10 text-[#39ff14] border-[#39ff14]/20 shadow-[0_0_10px_rgba(57,255,20,0.1)]'}`}>
+                                                    <Users className="w-3.5 h-3.5" />
+                                                    {c.capacity - c.enrolledStudents.length} LIBRES ({c.enrolledStudents.length}/{c.capacity})
+                                                </div>
+                                                <span className="text-xs text-blue-400 flex items-center gap-1 hover:text-blue-300 transition-colors font-medium">
+                                                    {isExpanded ? <><ChevronUp className="w-4 h-4" /> Ocultar alumnos</> : <><ChevronDown className="w-4 h-4" /> Ver inscritos</>}
+                                                </span>
+                                            </div>
                                         </div>
+
+                                        {/* List students with Check-in Controls */}
+                                        {isExpanded && (
+                                            <div className="p-4 border-t border-slate-600/50 bg-slate-800 animate-fade-in text-sm">
+                                                <p className="text-xs text-slate-400 mb-3 font-semibold uppercase tracking-wider flex items-center gap-2">
+                                                    <CheckSquare className="w-4 h-4" /> Lista de Asistencia Automática:
+                                                </p>
+                                                {c.enrolledStudents.length > 0 ? (
+                                                    <div className="space-y-2 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
+                                                        {c.enrolledStudents.map(studentId => {
+                                                            const student = users.find(u => u.id === studentId);
+                                                            const hasAttended = c.attendedStudents?.includes(studentId);
+                                                            return (
+                                                                <button
+                                                                    key={studentId}
+                                                                    onClick={(e) => { e.stopPropagation(); markAttendance(c.id, studentId); }}
+                                                                    className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all ${hasAttended ? 'bg-[#39ff14]/10 border border-[#39ff14]/30 shadow-[0_0_15px_rgba(57,255,20,0.05)]' : 'bg-slate-900/50 hover:bg-slate-700 border border-slate-700/50 hover:border-[#ff6a00]/50'}`}
+                                                                >
+                                                                    <div className="flex items-center gap-3">
+                                                                        {hasAttended ? (
+                                                                            <CheckSquare className="w-5 h-5 text-[#39ff14] flex-shrink-0" />
+                                                                        ) : (
+                                                                            <Square className="w-5 h-5 text-slate-500 flex-shrink-0" />
+                                                                        )}
+                                                                        <span className={`text-sm font-medium ${hasAttended ? 'text-[#39ff14]' : 'text-slate-300'}`}>
+                                                                            {student ? `${student.name} ${student.lastName}` : 'ID No Registrado'}
+                                                                        </span>
+                                                                    </div>
+                                                                    {hasAttended && <span className="text-[10px] font-black text-[#39ff14] uppercase tracking-wider px-2 py-0.5 rounded border border-[#39ff14]/30 bg-[#39ff14]/10">Presente</span>}
+                                                                </button>
+                                                            )
+                                                        })}
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-center py-6 bg-slate-900/30 rounded-lg border border-slate-700/50 border-dashed">
+                                                        <p className="text-slate-500 italic">No hay alumnos inscritos en esta sesión aún.</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
-                                ) : (
-                                    <div className="mt-3 pt-3 border-t border-slate-600/50 text-center">
-                                        <p className="text-sm text-slate-500 italic">No hay alumnos inscritos.</p>
-                                    </div>
-                                )}
-                            </div>
-                        )) : (
-                            <div className="h-full flex flex-col items-center justify-center p-8 bg-slate-900/30 border border-dashed border-slate-700 rounded-xl">
-                                <Calendar className="w-10 h-10 text-slate-600 mb-3" />
-                                <p className="text-slate-400">No has programado clases para hoy.</p>
-                            </div>
-                        )}
+                                );
+                            });
+                        })()}
                     </div>
                 </div>
 
