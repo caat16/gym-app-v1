@@ -24,6 +24,7 @@ export interface Subscription {
     startDate: string;
     endDate: string;
     status: 'active' | 'expired' | 'expiring_soon';
+    paymentReminderSent?: boolean;
 }
 
 export interface PersonalRecord {
@@ -32,6 +33,14 @@ export interface PersonalRecord {
     exerciseName: string;
     value: number;
     unit: string;
+}
+
+export interface ScheduleBlock {
+    id: string;
+    dayOfWeek: number; // 0=Sun, 1=Mon, etc.
+    startTime: string; // HH:mm format
+    endTime: string;
+    capacity: number;
 }
 
 export interface User {
@@ -46,7 +55,15 @@ export interface User {
     biometrics: BiometricRecord[];
     personalRecords: PersonalRecord[];
     subscription?: Subscription;
+    scheduleBlocks?: string[]; // IDs of selected blocks
     waiverSigned: boolean;
+}
+
+export interface ClassEnrollment {
+    studentId: string;
+    attended: boolean;
+    status: 'enrolled' | 'confirmed' | 'cancelled' | 'rescheduled';
+    reminderSent: boolean;
 }
 
 export interface ClassSession {
@@ -56,15 +73,17 @@ export interface ClassSession {
     startTime: string; // ISO string
     endTime: string;
     capacity: number;
-    enrolledStudents: string[]; // User IDs
-    attendedStudents: string[]; // User IDs of those who checked in
+    enrolledStudents: string[]; // User IDs (legacy or shorthand)
+    attendedStudents: string[]; // User IDs (legacy or shorthand)
+    enrollments?: ClassEnrollment[]; // Detailed info for new flow
 }
 
 export interface Routine {
     id: string;
     name: string;
-    assignedTo: string; // User ID
-    exercises: { name: string; sets: number; reps: number }[];
+    assignedTo?: string | null; // User ID
+    planId?: string | null;     // Assign to a Plan instead of a specific user
+    exercises: { name: string; sets: number; reps: number | string; weight?: number | string }[];
 }
 
 import { supabase } from '../lib/supabase';
@@ -75,6 +94,7 @@ interface GymStore {
     plans: Plan[];
     classes: ClassSession[];
     routines: Routine[];
+    scheduleBlocks: ScheduleBlock[];
     loading: boolean;
 
     // Métodos asíncronos para cargar desde DB
@@ -83,17 +103,25 @@ interface GymStore {
     // Actions reescritas para backend
     loginWithCI: (ci: string) => Promise<boolean>;
     logout: () => void;
-    subscribePlan: (planId: string) => Promise<void>;
+    subscribePlan: (planId: string, selectedBlockIds?: string[]) => Promise<void>;
     registerStudent: (student: Omit<User, 'id' | 'role' | 'biometrics' | 'personalRecords' | 'subscription' | 'waiverSigned'>) => Promise<void>;
     registerTrainer: (trainerData: Omit<User, 'id' | 'role' | 'biometrics' | 'personalRecords' | 'waiverSigned'>) => Promise<void>;
     assignRoutine: (routine: Omit<Routine, 'id'>) => Promise<void>;
-    createClass: (classData: Omit<ClassSession, 'id' | 'enrolledStudents' | 'attendedStudents'>) => Promise<void>;
+
+    // Classes
+    createClass: (classData: Omit<ClassSession, 'id' | 'enrolledStudents' | 'attendedStudents' | 'enrollments'>) => Promise<void>;
     updateClassCapacity: (classId: string, capacity: number) => Promise<void>;
     enrollClass: (classId: string) => Promise<void>;
     cancelClass: (classId: string) => Promise<void>;
+    markAttendance: (classId: string, studentId: string) => Promise<void>;
+    updateClassEnrollmentStatus: (classId: string, status: 'confirmed' | 'rescheduled') => Promise<void>;
+
     addPersonalRecord: (studentId: string, record: Omit<PersonalRecord, 'id'>) => Promise<void>;
     addBiometrics: (studentId: string, data: Omit<BiometricRecord, 'id'>) => Promise<void>;
-    markAttendance: (classId: string, studentId: string) => Promise<void>;
+
+    // Schedules
+    createScheduleBlock: (block: Omit<ScheduleBlock, 'id'>) => Promise<void>;
+    deleteScheduleBlock: (blockId: string) => Promise<void>;
 
     // Operaciones CRUD Admin
     deleteUser: (userId: string) => Promise<void>;
@@ -107,6 +135,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
     plans: [],
     classes: [],
     routines: [],
+    scheduleBlocks: [],
     loading: false,
 
     fetchInitialData: async () => {
@@ -123,15 +152,27 @@ export const useGymStore = create<GymStore>((set, get) => ({
                 *,
                 class_enrollments (
                     student_id,
-                    attended
+                    attended,
+                    status,
+                    reminder_sent
                 )
             `);
 
             // Descargar Usuarios Básicos con suscripciones
             const { data: dbUsers } = await supabase.from('users').select('*, subscriptions(*)');
 
+            // Descargar Schedule Blocks
+            const { data: dbBlocks } = await supabase.from('schedule_blocks').select('*');
+
             set({
                 plans: dbPlans || [],
+                scheduleBlocks: dbBlocks ? dbBlocks.map(b => ({
+                    id: b.id,
+                    dayOfWeek: b.day_of_week,
+                    startTime: b.start_time,
+                    endTime: b.end_time,
+                    capacity: b.capacity
+                })) : [],
                 routines: dbRoutines ? dbRoutines.map(r => ({
                     id: r.id,
                     name: r.name,
@@ -147,6 +188,12 @@ export const useGymStore = create<GymStore>((set, get) => ({
                     capacity: c.capacity,
                     enrolledStudents: c.class_enrollments?.map((e: any) => e.student_id) || [],
                     attendedStudents: c.class_enrollments?.filter((e: any) => e.attended).map((e: any) => e.student_id) || [],
+                    enrollments: c.class_enrollments?.map((e: any) => ({
+                        studentId: e.student_id,
+                        attended: e.attended,
+                        status: e.status || 'enrolled',
+                        reminderSent: e.reminder_sent || false
+                    })) || []
                 })) : [],
                 users: dbUsers ? dbUsers.map(u => ({
                     id: u.id,
@@ -219,7 +266,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
 
     logout: () => set({ currentUser: null }),
 
-    subscribePlan: async (planId) => {
+    subscribePlan: async (planId, selectedBlockIds?: string[]) => {
         const state = get();
         if (!state.currentUser) return;
 
@@ -234,6 +281,17 @@ export const useGymStore = create<GymStore>((set, get) => ({
 
             await supabase.from('subscriptions').insert([newSub]);
 
+            if (selectedBlockIds && selectedBlockIds.length > 0) {
+                const blockInserts = selectedBlockIds.map(blockId => ({
+                    user_id: state.currentUser!.id,
+                    block_id: blockId
+                }));
+                const { error: blockError } = await supabase.from('student_schedule_blocks').insert(blockInserts);
+                if (blockError) {
+                    console.error('Error inserting student schedule blocks:', blockError);
+                }
+            }
+
             // Update local state optimistic
             set({
                 currentUser: {
@@ -243,7 +301,10 @@ export const useGymStore = create<GymStore>((set, get) => ({
                         startDate: newSub.start_date,
                         endDate: newSub.end_date,
                         status: newSub.status as 'active',
-                    }
+                    },
+                    scheduleBlocks: selectedBlockIds && selectedBlockIds.length > 0
+                        ? selectedBlockIds
+                        : state.currentUser.scheduleBlocks
                 }
             });
         } catch (error) {
@@ -490,6 +551,62 @@ export const useGymStore = create<GymStore>((set, get) => ({
     },
 
     markAttendance: async (_classId, _studentId) => {
+    },
+
+    updateClassEnrollmentStatus: async (classId, status) => {
+        const state = get();
+        if (!state.currentUser) return;
+
+        try {
+            const { error } = await supabase
+                .from('class_enrollments')
+                .update({ status: status })
+                .match({ class_id: classId, student_id: state.currentUser.id });
+
+            if (!error) {
+                // Update local state if needed
+            }
+        } catch (error) {
+            console.error('Error updating status', error);
+        }
+    },
+
+    createScheduleBlock: async (block) => {
+        try {
+            const dbBlock = {
+                day_of_week: block.dayOfWeek,
+                start_time: block.startTime,
+                end_time: block.endTime,
+                capacity: block.capacity
+            };
+            const { data, error } = await supabase.from('schedule_blocks').insert([dbBlock]).select().single();
+            if (data && !error) {
+                set((state) => ({
+                    scheduleBlocks: [...state.scheduleBlocks, {
+                        id: data.id,
+                        dayOfWeek: data.day_of_week,
+                        startTime: data.start_time,
+                        endTime: data.end_time,
+                        capacity: data.capacity
+                    }]
+                }));
+            }
+        } catch (e) {
+            console.error('Error creating block', e);
+        }
+    },
+
+    deleteScheduleBlock: async (blockId) => {
+        try {
+            const { error } = await supabase.from('schedule_blocks').delete().eq('id', blockId);
+            if (!error) {
+                set((state) => ({
+                    scheduleBlocks: state.scheduleBlocks.filter(b => b.id !== blockId)
+                }));
+            }
+        } catch (error) {
+            console.error('Error deleting block', error);
+        }
     },
 
     deleteUser: async (userId) => {

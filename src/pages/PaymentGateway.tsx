@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { QrCode, ShieldCheck, ArrowLeft, Loader2, Download, Landmark } from 'lucide-react';
+import { QrCode, ShieldCheck, ArrowLeft, Loader2, Download, Landmark, CalendarClock } from 'lucide-react';
 import { useGymStore } from '../store/useStore';
 
 export default function PaymentGateway() {
     const { planId } = useParams<{ planId: string }>();
     const navigate = useNavigate();
-    const { plans, currentUser, subscribePlan } = useGymStore();
+    const { plans, currentUser, subscribePlan, scheduleBlocks } = useGymStore();
 
     const [isVerifying, setIsVerifying] = useState(false);
+    const [selectedBlocks, setSelectedBlocks] = useState<string[]>([]);
 
     // Verify User and Plan
     const plan = plans.find(p => p.id === planId);
@@ -27,7 +28,7 @@ export default function PaymentGateway() {
         await new Promise(resolve => setTimeout(resolve, 2000));
 
         // Execute the subscription after "payment validation"
-        await subscribePlan(plan.id);
+        await subscribePlan(plan.id, selectedBlocks);
 
         alert('¡Pago Validado! Te has suscrito exitosamente al ' + plan.name);
         navigate('/app');
@@ -56,7 +57,7 @@ export default function PaymentGateway() {
                 </div>
 
                 {/* Plan Summary Card */}
-                <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700 mb-8">
+                <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700 mb-6">
                     <div className="flex justify-between items-center mb-2">
                         <span className="text-slate-300 font-medium">Plan Seleccionado</span>
                         <span className="text-[#39ff14] font-bold">{plan.name}</span>
@@ -66,6 +67,37 @@ export default function PaymentGateway() {
                         <span className="text-2xl font-extrabold text-white">${plan.price}<span className="text-sm text-slate-500 font-normal">/mes</span></span>
                     </div>
                 </div>
+
+                {/* Selección de Horarios */}
+                {(scheduleBlocks && scheduleBlocks.length > 0) && (
+                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-8 shadow-inner">
+                        <h4 className="flex items-center gap-2 text-white font-medium mb-3 border-b border-slate-700 pb-2 text-sm">
+                            <CalendarClock className="w-4 h-4 text-indigo-400" /> Elige tu horario base
+                        </h4>
+                        <p className="text-xs text-slate-400 mb-3">Puedes seleccionar los horarios en los que prevés asistir frecuentemente.</p>
+                        <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                            {scheduleBlocks.map(block => {
+                                const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+                                const isSelected = selectedBlocks.includes(block.id);
+                                return (
+                                    <button
+                                        key={block.id}
+                                        onClick={() => {
+                                            if (isSelected) {
+                                                setSelectedBlocks(selectedBlocks.filter(id => id !== block.id));
+                                            } else {
+                                                setSelectedBlocks([...selectedBlocks, block.id]);
+                                            }
+                                        }}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${isSelected ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500 shadow-[0_0_10px_rgba(79,70,229,0.2)]' : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-500'}`}
+                                    >
+                                        {days[block.dayOfWeek]} {block.startTime.slice(0, 5)} - {block.endTime.slice(0, 5)}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
 
                 {/* QR Code Mockup and Download */}
                 <div className="flex flex-col items-center mb-6 gap-4">

@@ -5,11 +5,14 @@ import { Users, Calendar, PlusCircle, Search, Trophy, Medal, CheckSquare, Square
 import { differenceInDays } from 'date-fns';
 
 export default function TrainerDashboard() {
-    const { classes, users, plans, assignRoutine, addPersonalRecord, markAttendance, createClass, currentUser } = useGymStore();
+    const { classes, users, plans, routines, assignRoutine, addPersonalRecord, markAttendance, createClass, currentUser } = useGymStore();
     const [selectedStudent, setSelectedStudent] = useState('');
+    const [assignTarget, setAssignTarget] = useState<'student' | 'plan'>('student');
+    const [selectedPlanForRoutine, setSelectedPlanForRoutine] = useState('');
     const [routineName, setRoutineName] = useState('');
+    const [routineView, setRoutineView] = useState<'create' | 'library'>('create');
     // Workout Builder State
-    const [exercises, setExercises] = useState<{ name: string, sets: number, reps: number }[]>([{ name: '', sets: 3, reps: 10 }]);
+    const [exercises, setExercises] = useState<{ name: string, sets: number, reps: string, weight: string }[]>([{ name: '', sets: 3, reps: '10', weight: '' }]);
 
     // Directory Filter State
     const [searchTerm, setSearchTerm] = useState('');
@@ -49,26 +52,53 @@ export default function TrainerDashboard() {
         e.preventDefault();
         const validExercises = exercises.filter(ex => ex.name.trim() !== '');
 
-        if (!selectedStudent || !routineName || validExercises.length === 0) {
+        if (!routineName || validExercises.length === 0) {
             alert('Por favor complete todos los campos y agregue al menos un ejercicio válido.');
+            return;
+        }
+
+        if (assignTarget === 'student' && !selectedStudent) {
+            alert('Por favor seleccione un alumno.');
+            return;
+        }
+
+        if (assignTarget === 'plan' && !selectedPlanForRoutine) {
+            alert('Por favor seleccione un plan.');
             return;
         }
 
         await assignRoutine({
             name: routineName,
-            assignedTo: selectedStudent,
+            assignedTo: assignTarget === 'student' ? selectedStudent : null,
+            planId: assignTarget === 'plan' ? selectedPlanForRoutine : null,
             exercises: validExercises
         });
 
         // Reset form
         setSelectedStudent('');
+        setSelectedPlanForRoutine('');
         setRoutineName('');
-        setExercises([{ name: '', sets: 3, reps: 10 }]);
-        alert('Rutina personalizada asignada exitosamente.');
+        setExercises([{ name: '', sets: 3, reps: '10', weight: '' }]);
+        alert('Rutina asignada exitosamente.');
+    };
+
+    const handleDuplicateRoutine = (routine: typeof routines[0]) => {
+        setRoutineName(`Copia de ${routine.name}`);
+        setExercises(routine.exercises.map(ex => ({
+            name: ex.name,
+            sets: ex.sets,
+            reps: String(ex.reps),
+            weight: String(ex.weight || '')
+        })));
+        setAssignTarget('student');
+        setSelectedStudent('');
+        setSelectedPlanForRoutine('');
+        setRoutineView('create');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const handleAddExercise = () => {
-        setExercises([...exercises, { name: '', sets: 3, reps: 10 }]);
+        setExercises([...exercises, { name: '', sets: 3, reps: '10', weight: '' }]);
     };
 
     const handleRemoveExercise = (index: number) => {
@@ -285,128 +315,223 @@ export default function TrainerDashboard() {
                     </div>
                 </div>
 
-                {/* Cargar Rutina */}
+                {/* Cargar Rutina / Biblioteca */}
                 <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl h-fit">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2 bg-slate-700/50 rounded-lg text-[#39ff14]">
-                            <PlusCircle className="w-6 h-6" />
+                    <div className="flex justify-between items-center mb-6">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-slate-700/50 rounded-lg text-[#39ff14]">
+                                <PlusCircle className="w-6 h-6" />
+                            </div>
+                            <h3 className="font-semibold text-white">
+                                {routineView === 'create' ? 'Asignar Rutina' : 'Biblioteca de Rutinas'}
+                            </h3>
                         </div>
-                        <h3 className="font-semibold text-white">Cargar Rutina</h3>
+                        <div className="flex gap-1 bg-slate-900 p-1 rounded-xl shadow-inner">
+                            <button
+                                onClick={() => setRoutineView('create')}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${routineView === 'create' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+                            >
+                                Nueva
+                            </button>
+                            <button
+                                onClick={() => setRoutineView('library')}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${routineView === 'library' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+                            >
+                                Biblioteca
+                            </button>
+                        </div>
                     </div>
 
-                    <form onSubmit={handleAssignRoutine} className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-slate-300 mb-1">Seleccionar Alumno</label>
-                            <select
-                                value={selectedStudent}
-                                onChange={(e) => setSelectedStudent(e.target.value)}
-                                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 px-3 text-white focus:outline-none focus:ring-2 focus:ring-[#39ff14] focus:border-transparent"
-                                required
-                            >
-                                <option value="" disabled>Seleccione un alumno...</option>
-                                {students.map(s => (
-                                    <option key={s.id} value={s.id}>{s.name} ({s.email})</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-slate-300 mb-1">Nombre de la Rutina</label>
-                            <input
-                                type="text"
-                                value={routineName}
-                                onChange={(e) => setRoutineName(e.target.value)}
-                                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 px-3 text-white focus:outline-none focus:ring-2 focus:ring-[#39ff14] focus:border-transparent placeholder-slate-500"
-                                placeholder="Ej. Hipertrofia Tren Superior"
-                                required
-                            />
-                        </div>
-
-                        <div className="border border-slate-700 rounded-xl p-4 bg-slate-900/50">
-                            <div className="flex justify-between items-center mb-4">
-                                <label className="block text-sm font-medium text-slate-300">Ejercicios</label>
-                                <button type="button" onClick={handleAddExercise} className="text-xs font-bold text-[#39ff14] hover:text-green-400 flex items-center gap-1 bg-[#39ff14]/10 px-2 py-1 rounded-lg">
-                                    <PlusCircle className="w-3 h-3" /> Añadir
-                                </button>
-                            </div>
-
-                            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                                {exercises.map((ex, index) => (
-                                    <div key={index} className="flex flex-col sm:flex-row gap-2 items-start sm:items-center bg-slate-800 p-2 border border-slate-700 rounded-lg relative group">
+                    {routineView === 'create' ? (
+                        <>
+                            <form onSubmit={handleAssignRoutine} className="space-y-4 animate-fade-in">
+                                <div className="flex gap-4 mb-4">
+                                    <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
                                         <input
-                                            type="text"
-                                            value={ex.name}
-                                            onChange={(e) => handleExerciseChange(index, 'name', e.target.value)}
-                                            placeholder="Ejercicio"
-                                            className="w-full sm:flex-1 bg-slate-900 border border-slate-700 rounded py-1 px-2 text-white text-sm focus:outline-none focus:border-[#39ff14]"
-                                            required
+                                            type="radio"
+                                            checked={assignTarget === 'student'}
+                                            onChange={() => setAssignTarget('student')}
+                                            className="text-[#39ff14] focus:ring-[#39ff14] bg-slate-900 border-slate-700"
                                         />
-                                        <div className="flex gap-2 w-full sm:w-auto">
-                                            <div className="flex items-center gap-1 w-1/2 sm:w-20">
-                                                <span className="text-xs text-slate-400">Sets</span>
+                                        A Alumno Específico
+                                    </label>
+                                    <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            checked={assignTarget === 'plan'}
+                                            onChange={() => setAssignTarget('plan')}
+                                            className="text-[#39ff14] focus:ring-[#39ff14] bg-slate-900 border-slate-700"
+                                        />
+                                        A un Plan (Global)
+                                    </label>
+                                </div>
+
+                                {assignTarget === 'student' ? (
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Seleccionar Alumno</label>
+                                        <select
+                                            value={selectedStudent}
+                                            onChange={(e) => setSelectedStudent(e.target.value)}
+                                            className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 px-3 text-white focus:outline-none focus:ring-2 focus:ring-[#39ff14] focus:border-transparent"
+                                            required={assignTarget === 'student'}
+                                        >
+                                            <option value="" disabled>Seleccione un alumno...</option>
+                                            {students.map(s => (
+                                                <option key={s.id} value={s.id}>{s.name} ({s.email})</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Seleccionar Plan</label>
+                                        <select
+                                            value={selectedPlanForRoutine}
+                                            onChange={(e) => setSelectedPlanForRoutine(e.target.value)}
+                                            className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 px-3 text-white focus:outline-none focus:ring-2 focus:ring-[#39ff14] focus:border-transparent"
+                                            required={assignTarget === 'plan'}
+                                        >
+                                            <option value="" disabled>Seleccione un plan...</option>
+                                            {plans.map(p => (
+                                                <option key={p.id} value={p.id}>{p.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-1">Nombre de la Rutina</label>
+                                    <input
+                                        type="text"
+                                        value={routineName}
+                                        onChange={(e) => setRoutineName(e.target.value)}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 px-3 text-white focus:outline-none focus:ring-2 focus:ring-[#39ff14] focus:border-transparent placeholder-slate-500"
+                                        placeholder="Ej. Hipertrofia Tren Superior"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="border border-slate-700 rounded-xl p-4 bg-slate-900/50">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <label className="block text-sm font-medium text-slate-300">Ejercicios</label>
+                                        <button type="button" onClick={handleAddExercise} className="text-xs font-bold text-[#39ff14] hover:text-green-400 flex items-center gap-1 bg-[#39ff14]/10 px-2 py-1 rounded-lg">
+                                            <PlusCircle className="w-3 h-3" /> Añadir
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                                        {exercises.map((ex, index) => (
+                                            <div key={index} className="flex flex-col sm:flex-row gap-2 items-start sm:items-center bg-slate-800 p-2 border border-slate-700 rounded-lg relative group">
                                                 <input
-                                                    type="number"
-                                                    value={ex.sets}
-                                                    onChange={(e) => handleExerciseChange(index, 'sets', parseInt(e.target.value))}
-                                                    className="w-full bg-slate-900 border border-slate-700 rounded py-1 px-1 text-center text-white text-sm focus:outline-none focus:border-[#39ff14]"
-                                                    min="1" required
+                                                    type="text"
+                                                    value={ex.name}
+                                                    onChange={(e) => handleExerciseChange(index, 'name', e.target.value)}
+                                                    placeholder="Ejercicio"
+                                                    className="w-full sm:flex-1 bg-slate-900 border border-slate-700 rounded py-1 px-2 text-white text-sm focus:outline-none focus:border-[#39ff14]"
+                                                    required
                                                 />
+                                                <div className="flex gap-2 w-full sm:w-auto">
+                                                    <div className="flex items-center justify-between gap-1 w-1/3 sm:w-16">
+                                                        <span className="text-xs text-slate-400">Sets</span>
+                                                        <input
+                                                            type="number"
+                                                            value={ex.sets}
+                                                            onChange={(e) => handleExerciseChange(index, 'sets', parseInt(e.target.value))}
+                                                            className="w-8 bg-slate-900 border border-slate-700 rounded py-1 px-1 text-center text-white text-xs focus:outline-none focus:border-[#39ff14]"
+                                                            min="1" required
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-center gap-1 w-1/3 sm:w-24">
+                                                        <span className="text-xs text-slate-400">Reps</span>
+                                                        <input
+                                                            type="text"
+                                                            value={ex.reps}
+                                                            onChange={(e) => handleExerciseChange(index, 'reps', e.target.value)}
+                                                            className="w-full bg-slate-900 border border-slate-700 rounded py-1 px-2 text-white text-xs focus:outline-none focus:border-[#39ff14]"
+                                                            placeholder="10-12" required
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-center gap-1 w-1/3 sm:w-24">
+                                                        <span className="text-xs text-slate-400">Peso</span>
+                                                        <input
+                                                            type="text"
+                                                            value={ex.weight || ''}
+                                                            onChange={(e) => handleExerciseChange(index, 'weight', e.target.value)}
+                                                            className="w-full bg-slate-900 border border-slate-700 rounded py-1 px-2 text-white text-xs focus:outline-none focus:border-[#39ff14]"
+                                                            placeholder="70-80 kg"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveExercise(index)}
+                                                    className="absolute -right-2 -top-2 bg-slate-800 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    disabled={exercises.length === 1}
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
                                             </div>
-                                            <div className="flex items-center gap-1 w-1/2 sm:w-20">
-                                                <span className="text-xs text-slate-400">Reps</span>
-                                                <input
-                                                    type="number"
-                                                    value={ex.reps}
-                                                    onChange={(e) => handleExerciseChange(index, 'reps', parseInt(e.target.value))}
-                                                    className="w-full bg-slate-900 border border-slate-700 rounded py-1 px-1 text-center text-white text-sm focus:outline-none focus:border-[#39ff14]"
-                                                    min="1" required
-                                                />
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    className="w-full bg-gradient-to-r from-[#39ff14] to-green-500 hover:from-green-400 hover:to-green-600 text-slate-900 font-bold py-3 px-4 rounded-lg transition-all shadow-lg shadow-green-900/20 active:scale-[0.98] mt-4"
+                                >
+                                    Crear y Asignar Rutina
+                                </button>
+                            </form>
+
+                            <div className="mt-8 border-t border-slate-700 pt-6">
+                                <h4 className="text-sm font-semibold text-slate-400 mb-3 flex items-center gap-2">
+                                    <CheckSquare className="w-4 h-4" /> Últimas Rutinas Asignadas
+                                </h4>
+                                <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
+                                    {useGymStore.getState().routines.length > 0 ? [...useGymStore.getState().routines].reverse().slice(0, 10).map(r => {
+                                        const student = students.find(s => s.id === r.assignedTo);
+                                        return (
+                                            <div key={r.id} className="bg-slate-900/50 p-3 rounded-lg border border-slate-700 flex justify-between items-center transition-colors hover:border-slate-500">
+                                                <div>
+                                                    <p className="font-bold text-white text-sm">{r.name}</p>
+                                                    <p className="text-xs text-slate-400">Asignado a: <span className="text-slate-300">{r.planId ? `Plan ${plans.find(p => p.id === r.planId)?.name || '...'}` : (student ? `${student.name} ${student.lastName}` : 'Desconocido')}</span></p>
+                                                </div>
+                                                <div className="text-xs bg-[#39ff14]/10 text-[#39ff14] px-2 py-1 rounded font-medium">
+                                                    {r.exercises.length} ej.
+                                                </div>
                                             </div>
+                                        );
+                                    }) : (
+                                        <p className="text-xs text-slate-500 italic text-center py-4">No hay rutinas asignadas recientemente.</p>
+                                    )}
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="space-y-4 animate-fade-in">
+                            <p className="text-sm text-slate-400 mb-4">Selecciona una rutina existente para reutilizar sus ejercicios y estructura para otro alumno o plan.</p>
+                            <div className="grid grid-cols-1 gap-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                                {[...routines].reverse().map(r => (
+                                    <div key={r.id} className="bg-slate-900 border border-slate-700 rounded-xl p-4 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 hover:border-slate-500 transition-colors">
+                                        <div>
+                                            <h4 className="font-bold text-white mb-1">{r.name}</h4>
+                                            <p className="text-xs text-slate-400">Ejercicios: <span className="text-[#39ff14] font-medium">{r.exercises.length}</span></p>
                                         </div>
                                         <button
-                                            type="button"
-                                            onClick={() => handleRemoveExercise(index)}
-                                            className="absolute -right-2 -top-2 bg-slate-800 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                                            disabled={exercises.length === 1}
+                                            onClick={() => handleDuplicateRoutine(r)}
+                                            className="w-full xl:w-auto px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 flex-shrink-0"
                                         >
-                                            <Trash2 className="w-4 h-4" />
+                                            <PlusCircle className="w-4 h-4" /> Reasignar
                                         </button>
                                     </div>
                                 ))}
+                                {routines.length === 0 && (
+                                    <div className="text-center py-8">
+                                        <p className="text-slate-500 text-sm">No hay rutinas creadas aún.</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
-
-                        <button
-                            type="submit"
-                            className="w-full bg-gradient-to-r from-[#39ff14] to-green-500 hover:from-green-400 hover:to-green-600 text-slate-900 font-bold py-3 px-4 rounded-lg transition-all shadow-lg shadow-green-900/20 active:scale-[0.98] mt-4"
-                        >
-                            Crear y Asignar Rutina
-                        </button>
-                    </form>
-
-                    <div className="mt-8 border-t border-slate-700 pt-6">
-                        <h4 className="text-sm font-semibold text-slate-400 mb-3 flex items-center gap-2">
-                            <CheckSquare className="w-4 h-4" /> Últimas Rutinas Asignadas
-                        </h4>
-                        <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
-                            {useGymStore.getState().routines.length > 0 ? [...useGymStore.getState().routines].reverse().slice(0, 10).map(r => {
-                                const student = students.find(s => s.id === r.assignedTo);
-                                return (
-                                    <div key={r.id} className="bg-slate-900/50 p-3 rounded-lg border border-slate-700 flex justify-between items-center transition-colors hover:border-slate-500">
-                                        <div>
-                                            <p className="font-bold text-white text-sm">{r.name}</p>
-                                            <p className="text-xs text-slate-400">Alumno: <span className="text-slate-300">{student?.name} {student?.lastName || 'Desconocido'}</span></p>
-                                        </div>
-                                        <div className="text-xs bg-[#39ff14]/10 text-[#39ff14] px-2 py-1 rounded font-medium">
-                                            {r.exercises.length} ej.
-                                        </div>
-                                    </div>
-                                );
-                            }) : (
-                                <p className="text-xs text-slate-500 italic text-center py-4">No hay rutinas asignadas recientemente.</p>
-                            )}
-                        </div>
-                    </div>
+                    )}
                 </div>
 
                 {/* Directorio de Alumnos */}

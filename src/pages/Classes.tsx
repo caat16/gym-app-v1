@@ -4,7 +4,7 @@ import { Calendar, Clock, Users, UserPlus, UserMinus, ShieldCheck } from 'lucide
 import { cn } from '../components/layout/AppLayout';
 
 export default function Classes() {
-    const { classes, currentUser, enrollClass, cancelClass, users, updateClassCapacity } = useGymStore();
+    const { classes, currentUser, enrollClass, cancelClass, users, updateClassCapacity, updateClassEnrollmentStatus } = useGymStore();
 
     const isStudent = currentUser?.role === 'student';
 
@@ -44,6 +44,10 @@ export default function Classes() {
                     const isFull = c.enrolledStudents.length >= c.capacity;
                     const isEnrolled = currentUser ? c.enrolledStudents.includes(currentUser.id) : false;
                     const instructor = users.find(u => u.id === c.instructor);
+                    const enrollment = c.enrollments?.find(e => e.studentId === currentUser?.id);
+                    const isConfirmed = enrollment?.status === 'confirmed';
+                    const isRescheduled = enrollment?.status === 'rescheduled';
+                    const isWithin24Hours = (new Date(c.startTime).getTime() - new Date().getTime()) <= 24 * 60 * 60 * 1000 && new Date(c.startTime).getTime() > new Date().getTime();
 
                     return (
                         <div
@@ -111,13 +115,44 @@ export default function Classes() {
                             {isStudent && (
                                 <>
                                     {isEnrolled ? (
-                                        <button
-                                            onClick={() => handleCancel(c.id)}
-                                            className="w-full bg-slate-700 hover:bg-red-500/20 text-slate-300 hover:text-red-400 font-bold py-3 px-4 rounded-xl transition-all border border-slate-600 hover:border-red-500/50 flex items-center justify-center gap-2 group-hover:shadow-[0_0_15px_rgba(239,68,68,0.2)]"
-                                        >
-                                            <UserMinus className="w-5 h-5" />
-                                            Cancelar Reserva
-                                        </button>
+                                        <div className="space-y-3">
+                                            {isWithin24Hours && !isConfirmed && !isRescheduled && (
+                                                <div className="bg-orange-500/10 border border-orange-500/50 p-4 rounded-xl flex flex-col items-center">
+                                                    <p className="text-[#ff6a00] text-sm font-bold mb-3">¡Confirma tu asistencia!</p>
+                                                    <div className="flex gap-2 w-full">
+                                                        <button
+                                                            onClick={() => updateClassEnrollmentStatus(c.id, 'confirmed')}
+                                                            className="flex-1 bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-2.5 rounded-lg transition-colors"
+                                                        >
+                                                            Confirmar
+                                                        </button>
+                                                        <button
+                                                            onClick={() => updateClassEnrollmentStatus(c.id, 'rescheduled')}
+                                                            className="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold py-2.5 rounded-lg transition-colors"
+                                                        >
+                                                            Reprogramar
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {isConfirmed && (
+                                                <div className="bg-green-500/20 text-[#39ff14] text-center font-bold py-2.5 rounded-xl border border-green-500/30">
+                                                    Asistencia Confirmada ✓
+                                                </div>
+                                            )}
+                                            {isRescheduled && (
+                                                <div className="bg-yellow-500/20 text-yellow-500 text-center font-bold py-2.5 rounded-xl border border-yellow-500/30">
+                                                    Clase Reprogramada
+                                                </div>
+                                            )}
+                                            <button
+                                                onClick={() => handleCancel(c.id)}
+                                                className="w-full bg-slate-700 hover:bg-red-500/20 text-slate-300 hover:text-red-400 font-bold py-3 px-4 rounded-xl transition-all border border-slate-600 hover:border-red-500/50 flex items-center justify-center gap-2 group-hover:shadow-[0_0_15px_rgba(239,68,68,0.2)]"
+                                            >
+                                                <UserMinus className="w-5 h-5" />
+                                                Cancelar Reserva
+                                            </button>
+                                        </div>
                                     ) : (
                                         <button
                                             onClick={() => handleEnroll(c.id)}

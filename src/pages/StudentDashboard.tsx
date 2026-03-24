@@ -41,7 +41,7 @@ export default function StudentDashboard() {
 
     // Routines & PRs
     const routines = useGymStore(state => state.routines);
-    const myRoutines = routines.filter(r => r.assignedTo === currentUser.id);
+    const myRoutines = routines.filter(r => r.assignedTo === currentUser.id || (r.planId && currentPlan && r.planId === currentPlan.id));
     const myPrs = currentUser.personalRecords || [];
 
     // PR Chart Data & Filters
@@ -192,6 +192,11 @@ export default function StudentDashboard() {
                                                             <span className="bg-slate-700 px-1.5 py-0.5 rounded text-slate-300">
                                                                 <span className="text-slate-500">Reps </span>{ex.reps}
                                                             </span>
+                                                            {ex.weight && (
+                                                                <span className="bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/30">
+                                                                    <span className="text-indigo-400/70">Peso </span>{ex.weight}
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 ))}
