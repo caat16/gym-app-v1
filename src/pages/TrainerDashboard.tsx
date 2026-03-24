@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useGymStore } from '../store/useStore';
 import type { ClassSession } from '../store/useStore';
-import { Users, Calendar, PlusCircle, Search, Trophy, Medal, CheckSquare, Square, AlertTriangle, Trash2, X, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Users, Calendar, PlusCircle, Search, Trophy, Medal, CheckSquare, Square, AlertTriangle, Trash2, X, Clock, ChevronDown, ChevronUp, Eye } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
 
 export default function TrainerDashboard() {
@@ -11,6 +11,7 @@ export default function TrainerDashboard() {
     const [selectedPlanForRoutine, setSelectedPlanForRoutine] = useState('');
     const [routineName, setRoutineName] = useState('');
     const [routineView, setRoutineView] = useState<'create' | 'library'>('create');
+    const [previewRoutine, setPreviewRoutine] = useState<typeof routines[0] | null>(null);
     // Workout Builder State
     const [exercises, setExercises] = useState<{ name: string, sets: number, reps: string, weight: string }[]>([{ name: '', sets: 3, reps: '10', weight: '' }]);
 
@@ -516,12 +517,20 @@ export default function TrainerDashboard() {
                                             <h4 className="font-bold text-white mb-1">{r.name}</h4>
                                             <p className="text-xs text-slate-400">Ejercicios: <span className="text-[#39ff14] font-medium">{r.exercises.length}</span></p>
                                         </div>
-                                        <button
-                                            onClick={() => handleDuplicateRoutine(r)}
-                                            className="w-full xl:w-auto px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 flex-shrink-0"
-                                        >
-                                            <PlusCircle className="w-4 h-4" /> Reasignar
-                                        </button>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setPreviewRoutine(r)}
+                                                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                                            >
+                                                <Eye className="w-4 h-4" /> Ver
+                                            </button>
+                                            <button
+                                                onClick={() => handleDuplicateRoutine(r)}
+                                                className="w-full xl:w-auto px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 flex-shrink-0"
+                                            >
+                                                <PlusCircle className="w-4 h-4" /> Reasignar
+                                            </button>
+                                        </div>
                                     </div>
                                 ))}
                                 {routines.length === 0 && (
@@ -783,6 +792,65 @@ export default function TrainerDashboard() {
                                     {isSubmittingClass ? 'Guardando...' : 'Crear Clase'}
                                 </button>
                             </form>
+                        </div>
+                    </div>
+                )}
+                {/* Modal de Vista Previa de Rutina */}
+                {previewRoutine && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-4">
+                        <div className="bg-[#1e293b] border border-slate-700 rounded-3xl p-6 sm:p-8 w-full max-w-lg shadow-2xl relative max-h-[90vh] flex flex-col">
+                            <button
+                                onClick={() => setPreviewRoutine(null)}
+                                className="absolute top-4 right-4 p-2 bg-slate-800/50 hover:bg-slate-700 text-slate-400 hover:text-white rounded-full transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+
+                            <div className="flex items-center gap-3 mb-6 pr-8">
+                                <div className="p-3 bg-blue-500/20 rounded-xl relative">
+                                    <Eye className="w-6 h-6 text-blue-400" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-white leading-tight">{previewRoutine.name}</h2>
+                                    <p className="text-xs text-blue-400 font-medium">{previewRoutine.exercises.length} ejercicios incluidos</p>
+                                </div>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3">
+                                {previewRoutine.exercises.map((ex, idx) => (
+                                    <div key={idx} className="bg-slate-900 border border-slate-700/50 rounded-xl p-4">
+                                        <h4 className="font-bold text-white mb-2">{ex.name}</h4>
+                                        <div className="flex flex-wrap gap-4">
+                                            <div className="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/50 flex flex-col justify-center">
+                                                <span className="text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">Sets</span>
+                                                <span className="font-bold text-white text-sm">{ex.sets}</span>
+                                            </div>
+                                            <div className="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/50 flex flex-col justify-center min-w-[3rem]">
+                                                <span className="text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">Reps</span>
+                                                <span className="font-bold text-[#39ff14] text-sm">{ex.reps}</span>
+                                            </div>
+                                            {ex.weight && (
+                                                <div className="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/50 flex flex-col justify-center">
+                                                    <span className="text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">Peso</span>
+                                                    <span className="font-bold text-white text-sm">{ex.weight}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="mt-6 pt-6 border-t border-slate-700/50">
+                                <button
+                                    onClick={() => {
+                                        handleDuplicateRoutine(previewRoutine);
+                                        setPreviewRoutine(null);
+                                    }}
+                                    className="w-full py-3 rounded-xl font-bold bg-[#39ff14] hover:bg-green-400 text-slate-900 transition-colors shadow-lg shadow-green-900/20 active:scale-[0.98] flex items-center justify-center gap-2"
+                                >
+                                    <PlusCircle className="w-5 h-5" /> Utilizar esta estructura
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}

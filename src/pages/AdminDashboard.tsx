@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useGymStore } from '../store/useStore';
-import { ShieldAlert, UserPlus, Users, DollarSign, Activity, Trash2, CalendarDays, Dumbbell, Clock } from 'lucide-react';
+import { ShieldAlert, UserPlus, Users, DollarSign, Activity, Trash2, CalendarDays, Dumbbell, Clock, Eye, X, PlusCircle } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
 
 export default function AdminDashboard() {
@@ -21,8 +21,8 @@ export default function AdminDashboard() {
     const [blockStart, setBlockStart] = useState('06:00');
     const [blockEnd, setBlockEnd] = useState('07:00');
     const [blockCapacity, setBlockCapacity] = useState(10);
-
     // Duplicate Routine Modal State
+    const [previewRoutine, setPreviewRoutine] = useState<typeof routines[0] | null>(null);
     const [showDuplicateModal, setShowDuplicateModal] = useState(false);
     const [duplicateTarget, setDuplicateTarget] = useState<'student' | 'plan'>('student');
     const [duplicateStudent, setDuplicateStudent] = useState('');
@@ -358,9 +358,14 @@ export default function AdminDashboard() {
                                                         <p className="text-[10px] bg-slate-800 text-blue-400 mt-2 px-1.5 py-0.5 rounded inline-block">{r.exercises.length} ejercicios</p>
                                                     </div>
                                                     <div className="flex flex-col gap-1">
-                                                        <button onClick={() => openDuplicateModal(r)} className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
-                                                            Reasignar
-                                                        </button>
+                                                        <div className="flex gap-1">
+                                                            <button onClick={() => setPreviewRoutine(r)} className="flex-1 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
+                                                                <Eye className="w-3 h-3" /> Ver
+                                                            </button>
+                                                            <button onClick={() => openDuplicateModal(r)} className="flex-1 text-xs bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
+                                                                Reasignar
+                                                            </button>
+                                                        </div>
                                                         <button onClick={() => confirmDeleteRoutine(r.id, r.name)} className="text-xs border border-red-500/30 text-red-400 hover:bg-red-500/10 px-2 py-1 rounded transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
                                                             <Trash2 className="w-3 h-3" />
                                                         </button>
@@ -505,6 +510,66 @@ export default function AdminDashboard() {
                     </div>
                 )
             }
+
+            {/* Modal de Vista Previa de Rutina */}
+            {previewRoutine && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-4">
+                    <div className="bg-[#1e293b] border border-slate-700 rounded-3xl p-6 sm:p-8 w-full max-w-lg shadow-2xl relative max-h-[90vh] flex flex-col">
+                        <button
+                            onClick={() => setPreviewRoutine(null)}
+                            className="absolute top-4 right-4 p-2 bg-slate-800/50 hover:bg-slate-700 text-slate-400 hover:text-white rounded-full transition-colors"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+
+                        <div className="flex items-center gap-3 mb-6 pr-8">
+                            <div className="p-3 bg-blue-500/20 rounded-xl relative">
+                                <Eye className="w-6 h-6 text-blue-400" />
+                            </div>
+                            <div>
+                                <h2 className="text-xl font-bold text-white leading-tight">{previewRoutine.name}</h2>
+                                <p className="text-xs text-blue-400 font-medium">{previewRoutine.exercises.length} ejercicios incluidos</p>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3">
+                            {previewRoutine.exercises.map((ex, idx) => (
+                                <div key={idx} className="bg-slate-900 border border-slate-700/50 rounded-xl p-4">
+                                    <h4 className="font-bold text-white mb-2">{ex.name}</h4>
+                                    <div className="flex flex-wrap gap-4">
+                                        <div className="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/50 flex flex-col justify-center">
+                                            <span className="text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">Sets</span>
+                                            <span className="font-bold text-white text-sm">{ex.sets}</span>
+                                        </div>
+                                        <div className="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/50 flex flex-col justify-center min-w-[3rem]">
+                                            <span className="text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">Reps</span>
+                                            <span className="font-bold text-blue-400 text-sm">{ex.reps}</span>
+                                        </div>
+                                        {ex.weight && (
+                                            <div className="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/50 flex flex-col justify-center">
+                                                <span className="text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">Peso</span>
+                                                <span className="font-bold text-white text-sm">{ex.weight}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="mt-6 pt-6 border-t border-slate-700/50">
+                            <button
+                                onClick={() => {
+                                    openDuplicateModal(previewRoutine);
+                                    setPreviewRoutine(null);
+                                }}
+                                className="w-full py-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white transition-colors shadow-lg shadow-blue-900/20 active:scale-[0.98] flex items-center justify-center gap-2"
+                            >
+                                <PlusCircle className="w-5 h-5" /> Utilizar esta estructura
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 }

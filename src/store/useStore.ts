@@ -177,6 +177,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
                     id: r.id,
                     name: r.name,
                     assignedTo: r.assigned_to,
+                    planId: r.plan_id,
                     exercises: r.exercises
                 })) : [],
                 classes: dbClasses ? dbClasses.map(c => ({
