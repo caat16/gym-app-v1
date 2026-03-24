@@ -102,13 +102,15 @@ export default function AdminDashboard() {
 
     const handleCreateBlock = async (e: React.FormEvent) => {
         e.preventDefault();
-        await createScheduleBlock({
+        const success = await createScheduleBlock({
             dayOfWeek: blockDay,
             startTime: blockStart,
             endTime: blockEnd,
             capacity: blockCapacity
         });
-        alert('Bloque de horario creado exitosamente.');
+        if (success) {
+            alert('Bloque de horario creado exitosamente.');
+        }
     };
 
     const confirmDeleteBlock = (id: string) => {

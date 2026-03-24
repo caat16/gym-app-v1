@@ -120,7 +120,7 @@ interface GymStore {
     addBiometrics: (studentId: string, data: Omit<BiometricRecord, 'id'>) => Promise<void>;
 
     // Schedules
-    createScheduleBlock: (block: Omit<ScheduleBlock, 'id'>) => Promise<void>;
+    createScheduleBlock: (block: Omit<ScheduleBlock, 'id'>) => Promise<boolean>;
     deleteScheduleBlock: (blockId: string) => Promise<void>;
 
     // Operaciones CRUD Admin
@@ -318,6 +318,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
             const dbRoutine = {
                 name: routineData.name,
                 assigned_to: routineData.assignedTo,
+                plan_id: routineData.planId,
                 exercises: routineData.exercises
             };
             const { data, error } = await supabase.from('routines').insert([dbRoutine]).select().single();
@@ -326,6 +327,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
                     id: data.id,
                     name: data.name,
                     assignedTo: data.assigned_to,
+                    planId: data.plan_id,
                     exercises: data.exercises
                 };
                 set((state) => ({ routines: [...state.routines, mappedRoutine] }));
@@ -581,7 +583,12 @@ export const useGymStore = create<GymStore>((set, get) => ({
                 capacity: block.capacity
             };
             const { data, error } = await supabase.from('schedule_blocks').insert([dbBlock]).select().single();
-            if (data && !error) {
+            if (error) {
+                console.error("Supabase Error creating block:", error);
+                alert(`Error al crear bloque: ${error.message}`);
+                return false;
+            }
+            if (data) {
                 set((state) => ({
                     scheduleBlocks: [...state.scheduleBlocks, {
                         id: data.id,
@@ -591,9 +598,13 @@ export const useGymStore = create<GymStore>((set, get) => ({
                         capacity: data.capacity
                     }]
                 }));
+                return true;
             }
-        } catch (e) {
-            console.error('Error creating block', e);
+            return false;
+        } catch (e: any) {
+            console.error('Exception creating block', e);
+            alert(`Excepción: ${e.message}`);
+            return false;
         }
     },
 
