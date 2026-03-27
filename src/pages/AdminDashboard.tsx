@@ -7,7 +7,7 @@ export default function AdminDashboard() {
     const {
         users, plans, classes, routines, scheduleBlocks,
         registerTrainer, deleteUser, deleteClass, deleteRoutine,
-        createScheduleBlock, deleteScheduleBlock, assignRoutine
+        createScheduleBlocks, deleteScheduleBlock, assignRoutine
     } = useGymStore();
 
     // Formularios
@@ -16,8 +16,8 @@ export default function AdminDashboard() {
     const [email, setEmail] = useState('');
     const [ci, setCi] = useState('');
 
-    // Schedule Block Form
-    const [blockDay, setBlockDay] = useState(1);
+    // Formulario de Bloques de Horario
+    const [blockDays, setBlockDays] = useState<number[]>([]);
     const [blockStart, setBlockStart] = useState('06:00');
     const [blockEnd, setBlockEnd] = useState('07:00');
     const [blockCapacity, setBlockCapacity] = useState(10);
@@ -100,16 +100,25 @@ export default function AdminDashboard() {
         setCi('');
     };
 
-    const handleCreateBlock = async (e: React.FormEvent) => {
+    const handleCreateBlocks = async (e: React.FormEvent) => {
         e.preventDefault();
-        const success = await createScheduleBlock({
-            dayOfWeek: blockDay,
+
+        if (blockDays.length === 0) {
+            alert('Por favor, selecciona al menos un día de la semana.');
+            return;
+        }
+
+        const blocksToCreate = blockDays.map(day => ({
+            dayOfWeek: day,
             startTime: blockStart,
             endTime: blockEnd,
             capacity: blockCapacity
-        });
+        }));
+
+        const success = await createScheduleBlocks(blocksToCreate);
         if (success) {
-            alert('Bloque de horario creado exitosamente.');
+            alert(`¡Se crearon ${blockDays.length} bloques exitosamente!`);
+            setBlockDays([]); // Reset selection
         }
     };
 
@@ -397,18 +406,41 @@ export default function AdminDashboard() {
                             <h4 className="font-medium text-white mb-4 flex items-center gap-2">
                                 Añadir Nuevo Bloque
                             </h4>
-                            <form onSubmit={handleCreateBlock} className="space-y-4">
+                            <form onSubmit={handleCreateBlocks} className="space-y-4">
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-400 mb-1">Día de la Semana</label>
-                                    <select value={blockDay} onChange={e => setBlockDay(parseInt(e.target.value))} className="w-full bg-slate-800 border border-slate-600 rounded-lg py-2 px-3 text-white focus:ring-1 focus:ring-indigo-500">
-                                        <option value={1}>Lunes</option>
-                                        <option value={2}>Martes</option>
-                                        <option value={3}>Miércoles</option>
-                                        <option value={4}>Jueves</option>
-                                        <option value={5}>Viernes</option>
-                                        <option value={6}>Sábado</option>
-                                        <option value={0}>Domingo</option>
-                                    </select>
+                                    <label className="block text-xs font-medium text-slate-400 mb-2">Días de la Semana</label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {[
+                                            { id: 1, label: 'Lun' },
+                                            { id: 2, label: 'Mar' },
+                                            { id: 3, label: 'Mié' },
+                                            { id: 4, label: 'Jue' },
+                                            { id: 5, label: 'Vie' },
+                                            { id: 6, label: 'Sáb' },
+                                            { id: 0, label: 'Dom' },
+                                        ].map(day => {
+                                            const isSelected = blockDays.includes(day.id);
+                                            return (
+                                                <button
+                                                    type="button"
+                                                    key={day.id}
+                                                    onClick={() => {
+                                                        if (isSelected) {
+                                                            setBlockDays(prev => prev.filter(d => d !== day.id));
+                                                        } else {
+                                                            setBlockDays(prev => [...prev, day.id]);
+                                                        }
+                                                    }}
+                                                    className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${isSelected
+                                                            ? 'bg-indigo-600 text-white shadow-[0_0_10px_rgba(79,70,229,0.4)]'
+                                                            : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-600'
+                                                        }`}
+                                                >
+                                                    {day.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>

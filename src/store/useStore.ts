@@ -122,6 +122,7 @@ interface GymStore {
 
     // Schedules
     createScheduleBlock: (block: Omit<ScheduleBlock, 'id'>) => Promise<boolean>;
+    createScheduleBlocks: (blocks: Omit<ScheduleBlock, 'id'>[]) => Promise<boolean>;
     deleteScheduleBlock: (blockId: string) => Promise<void>;
 
     // Operaciones CRUD Admin
@@ -608,6 +609,41 @@ export const useGymStore = create<GymStore>((set, get) => ({
         } catch (e: any) {
             console.error('Exception creating block', e);
             alert(`Excepción: ${e.message}`);
+            return false;
+        }
+    },
+
+    createScheduleBlocks: async (blocks) => {
+        try {
+            const dbBlocks = blocks.map(block => ({
+                day_of_week: block.dayOfWeek,
+                start_time: block.startTime,
+                end_time: block.endTime,
+                capacity: block.capacity
+            }));
+            const { data, error } = await supabase.from('schedule_blocks').insert(dbBlocks).select();
+            if (error) {
+                console.error("Supabase Error creating blocks:", error);
+                alert(`Error al crear múltiples bloques: ${error.message}`);
+                return false;
+            }
+            if (data && data.length > 0) {
+                const newLocalBlocks = data.map(d => ({
+                    id: d.id,
+                    dayOfWeek: d.day_of_week,
+                    startTime: d.start_time,
+                    endTime: d.end_time,
+                    capacity: d.capacity
+                }));
+                set((state) => ({
+                    scheduleBlocks: [...state.scheduleBlocks, ...newLocalBlocks]
+                }));
+                return true;
+            }
+            return false;
+        } catch (e: any) {
+            console.error('Exception creating blocks', e);
+            alert(`Excepción múltiple: ${e.message}`);
             return false;
         }
     },
