@@ -166,8 +166,18 @@ export const useGymStore = create<GymStore>((set, get) => ({
             // Descargar Schedule Blocks
             const { data: dbBlocks } = await supabase.from('schedule_blocks').select('*');
 
+            // Filtrar planes duplicados por nombre como medida defensiva
+            const uniquePlans = dbPlans ? dbPlans.reduce((acc, current) => {
+                const x = acc.find((item: any) => item.name === current.name);
+                if (!x) {
+                    return acc.concat([current]);
+                } else {
+                    return acc;
+                }
+            }, []) : [];
+
             set({
-                plans: dbPlans || [],
+                plans: uniquePlans,
                 scheduleBlocks: dbBlocks ? dbBlocks.map(b => ({
                     id: b.id,
                     dayOfWeek: b.day_of_week,
