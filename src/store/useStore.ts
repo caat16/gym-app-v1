@@ -24,6 +24,7 @@ export interface Subscription {
     startDate: string;
     endDate: string;
     status: 'active' | 'expired' | 'expiring_soon';
+    sessions?: number;
     paymentReminderSent?: boolean;
 }
 
@@ -103,7 +104,7 @@ interface GymStore {
     // Actions reescritas para backend
     loginWithCI: (ci: string) => Promise<boolean>;
     logout: () => void;
-    subscribePlan: (planId: string, selectedBlockIds?: string[]) => Promise<void>;
+    subscribePlan: (planId: string, selectedBlockIds?: string[], sessions?: number) => Promise<void>;
     registerStudent: (student: Omit<User, 'id' | 'role' | 'biometrics' | 'personalRecords' | 'subscription' | 'waiverSigned'>) => Promise<void>;
     registerTrainer: (trainerData: Omit<User, 'id' | 'role' | 'biometrics' | 'personalRecords' | 'waiverSigned'>) => Promise<void>;
     assignRoutine: (routine: Omit<Routine, 'id'>) => Promise<void>;
@@ -254,6 +255,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
                     startDate: data.subscriptions[0].start_date,
                     endDate: data.subscriptions[0].end_date,
                     status: data.subscriptions[0].status,
+                    sessions: data.subscriptions[0].sessions,
                 } : undefined
             };
 
@@ -267,7 +269,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
 
     logout: () => set({ currentUser: null }),
 
-    subscribePlan: async (planId, selectedBlockIds?: string[]) => {
+    subscribePlan: async (planId, selectedBlockIds?: string[], sessions?: number) => {
         const state = get();
         if (!state.currentUser) return;
 
@@ -275,6 +277,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
             const newSub = {
                 user_id: state.currentUser.id,
                 plan_id: planId,
+                sessions: sessions || null,
                 start_date: new Date().toISOString(),
                 end_date: addDays(new Date(), 30).toISOString(),
                 status: 'active'
@@ -302,6 +305,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
                         startDate: newSub.start_date,
                         endDate: newSub.end_date,
                         status: newSub.status as 'active',
+                        sessions: sessions || undefined
                     },
                     scheduleBlocks: selectedBlockIds && selectedBlockIds.length > 0
                         ? selectedBlockIds

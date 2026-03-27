@@ -10,6 +10,7 @@ export default function PaymentGateway() {
 
     const [isVerifying, setIsVerifying] = useState(false);
     const [selectedBlocks, setSelectedBlocks] = useState<string[]>([]);
+    const [selectedSessions, setSelectedSessions] = useState<number | null>(null);
 
     // Verify User and Plan
     const plan = plans.find(p => p.id === planId);
@@ -28,7 +29,8 @@ export default function PaymentGateway() {
         await new Promise(resolve => setTimeout(resolve, 2000));
 
         // Execute the subscription after "payment validation"
-        await subscribePlan(plan.id, selectedBlocks);
+        // Pass selectedSessions if it's required for the plan
+        await subscribePlan(plan.id, selectedBlocks, selectedSessions || undefined);
 
         alert('¡Pago Validado! Te has suscrito exitosamente al ' + plan.name);
         navigate('/app');
@@ -37,6 +39,23 @@ export default function PaymentGateway() {
     const handleDownloadQR = () => {
         alert('Se iniciará la descarga del código QR...');
     };
+
+    // Session Pricing Logic
+    const isPowerPlate = plan.name.toLowerCase().includes('power plate');
+    const isHibrido = plan.name.toLowerCase().includes('híbrido') || plan.name.toLowerCase().includes('hibrido');
+    const requiresSessions = isPowerPlate || isHibrido;
+
+    const sessionOptions = isPowerPlate
+        ? [{ count: 8, price: 360 }, { count: 12, price: 500 }]
+        : isHibrido
+            ? [{ count: 12, price: 350 }, { count: 20, price: 450 }]
+            : [];
+
+    const activePrice = requiresSessions
+        ? (sessionOptions.find(o => o.count === selectedSessions)?.price || 0)
+        : plan.price;
+
+    const isReadyToPay = requiresSessions ? selectedSessions !== null : true;
 
     return (
         <div className="flex flex-col items-center justify-center py-10 px-4 animate-fade-in">
@@ -64,9 +83,41 @@ export default function PaymentGateway() {
                     </div>
                     <div className="flex justify-between items-center">
                         <span className="text-slate-400 text-sm">Monto a pagar</span>
-                        <span className="text-2xl font-extrabold text-white">${plan.price}<span className="text-sm text-slate-500 font-normal">/mes</span></span>
+                        <span className="text-2xl font-extrabold text-white">
+                            ${activePrice > 0 ? activePrice : '--'}
+                            {(!requiresSessions || selectedSessions) && <span className="text-sm text-slate-500 font-normal">/mes</span>}
+                        </span>
                     </div>
                 </div>
+
+                {/* Session Choice Panel */}
+                {requiresSessions && (
+                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6 shadow-inner">
+                        <h4 className="text-white font-medium mb-3 text-sm flex items-center gap-2">
+                            <span>⚡</span> Elige tu paquete de sesiones
+                        </h4>
+                        <div className="grid grid-cols-2 gap-3">
+                            {sessionOptions.map(opt => (
+                                <button
+                                    key={opt.count}
+                                    onClick={() => setSelectedSessions(opt.count)}
+                                    className={`p-3 rounded-xl border flex flex-col items-center justify-center transition-all ${selectedSessions === opt.count
+                                        ? 'bg-[#39ff14]/10 border-[#39ff14] shadow-[0_0_15px_rgba(57,255,20,0.15)] ring-1 ring-[#39ff14]'
+                                        : 'bg-slate-900 border-slate-700 hover:border-slate-500 hover:bg-slate-800'
+                                        }`}
+                                >
+                                    <span className={`text-xl font-bold ${selectedSessions === opt.count ? 'text-[#39ff14]' : 'text-white'}`}>
+                                        {opt.count}
+                                    </span>
+                                    <span className="text-xs text-slate-400 mb-1">sesiones</span>
+                                    <span className="text-sm font-semibold text-white bg-slate-800 px-2 py-0.5 rounded-full mt-1">
+                                        ${opt.price} bs
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Selección de Horarios */}
                 {(scheduleBlocks && scheduleBlocks.length > 0) && (
@@ -137,8 +188,8 @@ export default function PaymentGateway() {
                 <div className="space-y-4">
                     <button
                         onClick={handleSimulatePayment}
-                        disabled={isVerifying}
-                        className="w-full relative py-4 px-6 rounded-xl font-bold bg-gradient-to-r from-[#39ff14] to-green-500 hover:from-green-500 hover:to-green-600 text-slate-900 shadow-lg shadow-green-900/20 transition-all disabled:opacity-70 disabled:cursor-not-allowed overflow-hidden flex items-center justify-center gap-2"
+                        disabled={isVerifying || !isReadyToPay}
+                        className="w-full relative py-4 px-6 rounded-xl font-bold bg-gradient-to-r from-[#39ff14] to-green-500 hover:from-green-500 hover:to-green-600 text-slate-900 shadow-lg shadow-green-900/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden flex items-center justify-center gap-2"
                     >
                         {isVerifying ? (
                             <>
