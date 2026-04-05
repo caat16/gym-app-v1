@@ -4,6 +4,7 @@ import { differenceInDays } from 'date-fns';
 import { AlertTriangle, Activity, Target, Dumbbell, Trophy, Plus, X, BarChart3, TrendingUp, Snowflake, CheckCircle2, MessageCircle } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import ChatbotFaq from '../components/ChatbotFaq';
+import ExpiryAlertModal from '../components/ExpiryAlertModal';
 
 export default function StudentDashboard() {
     const { currentUser, addBiometrics, addPersonalRecord, requestFreeze, confirmAttendance } = useGymStore();
@@ -39,6 +40,18 @@ export default function StudentDashboard() {
     const sessionsUsed = 0; // would come from subscription.sessions_used
     const sessionsRemaining = Math.max(0, sessionsTotal - sessionsUsed);
     const isSessionsAlert = isPowerPlatePlan && sessionsTotal > 0 && sessionsRemaining <= 3;
+
+    // --- Blocking Expiry Modal Logic (localStorage per-day key) ---
+    const today = new Date().toISOString().split('T')[0]; // e.g. '2026-04-05'
+    const lsKey = `alertaVencimiento_${currentUser.id}_${today}`;
+    const alreadyAcknowledgedToday = typeof localStorage !== 'undefined' && localStorage.getItem(lsKey) === 'true';
+    const shouldShowExpiryModal = (isExpiringSoon || isSessionsAlert) && !alreadyAcknowledgedToday;
+    const [showExpiryModal, setShowExpiryModal] = useState(shouldShowExpiryModal);
+
+    const handleAcceptExpiry = () => {
+        localStorage.setItem(lsKey, 'true');
+        setShowExpiryModal(false);
+    };
 
     // Biometrics Chart Data
     const bioChartData = [...(currentUser.biometrics || [])].reverse().map(record => ({
@@ -640,6 +653,16 @@ export default function StudentDashboard() {
                     </div>
                 </div>
             )}
+
+            {/* Blocking Expiry Alert Modal */}
+            <ExpiryAlertModal
+                isOpen={showExpiryModal}
+                onAccept={handleAcceptExpiry}
+                daysRemaining={daysRemaining}
+                sessionsRemaining={sessionsRemaining}
+                planName={currentPlan?.name}
+                isPowerPlate={isPowerPlatePlan}
+            />
 
             {/* Chatbot FAQ flotante */}
             <ChatbotFaq adminPhone="591XXXXXXXX" />
