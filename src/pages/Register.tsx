@@ -17,6 +17,7 @@ export default function Register() {
         lastName: '',
         age: '',
         email: '',
+        phone: '',
         weight: '',
         height: ''
     });
@@ -39,7 +40,8 @@ export default function Register() {
             name: formData.name,
             lastName: formData.lastName,
             age: parseInt(formData.age),
-            email: formData.email
+            email: formData.email,
+            phone: formData.phone || undefined
         });
 
         // Login directly after registration
@@ -92,6 +94,16 @@ export default function Register() {
                                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                     className="w-full bg-slate-900 border border-slate-700 rounded-xl py-3 px-4 text-white focus:ring-2 focus:ring-[#39ff14]"
                                     required
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-300 mb-1">Número de Celular</label>
+                                <input
+                                    type="tel"
+                                    placeholder="Ej: +591 77712345"
+                                    value={formData.phone}
+                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                    className="w-full bg-slate-900 border border-slate-700 rounded-xl py-3 px-4 text-white focus:ring-2 focus:ring-[#39ff14]"
                                 />
                             </div>
                             <div>

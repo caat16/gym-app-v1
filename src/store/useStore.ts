@@ -52,11 +52,12 @@ export interface User {
     lastName: string;
     age: number;
     email: string;
+    phone?: string;
     avatar?: string;
     biometrics: BiometricRecord[];
     personalRecords: PersonalRecord[];
     subscription?: Subscription;
-    scheduleBlocks?: string[]; // IDs of selected blocks
+    scheduleBlocks?: string[];
     waiverSigned: boolean;
 }
 
@@ -65,6 +66,19 @@ export interface ClassEnrollment {
     attended: boolean;
     status: 'enrolled' | 'confirmed' | 'cancelled' | 'rescheduled';
     reminderSent: boolean;
+    isConfirmed?: boolean;
+    confirmedAt?: string;
+}
+
+export interface MembershipFreeze {
+    id: string;
+    userId: string;
+    requestedAt: string;
+    freezeStart: string;
+    freezeEnd: string;
+    autoEndAt: string;
+    status: 'pending' | 'active' | 'unfrozen' | 'auto_expired';
+    justificationText?: string;
 }
 
 export interface ClassSession {
@@ -125,6 +139,19 @@ interface GymStore {
     createScheduleBlocks: (blocks: Omit<ScheduleBlock, 'id'>[]) => Promise<boolean>;
     deleteScheduleBlock: (blockId: string) => Promise<void>;
 
+    // Profile
+    updateUserProfile: (userId: string, data: { name?: string; email?: string; phone?: string }) => Promise<boolean>;
+
+    // Membership Freezes
+    requestFreeze: (data: { freezeStart: string; freezeEnd: string; justificationText: string }) => Promise<boolean>;
+    getUserFreezes: (userId: string) => Promise<MembershipFreeze[]>;
+    approveFreeze: (freezeId: string) => Promise<boolean>;
+    rejectFreeze: (freezeId: string) => Promise<boolean>;
+    membershipFreezes: MembershipFreeze[];
+
+    // Attendance Confirmation
+    confirmAttendance: (classId: string) => Promise<boolean>;
+
     // Operaciones CRUD Admin
     deleteUser: (userId: string) => Promise<void>;
     deleteClass: (classId: string) => Promise<void>;
@@ -138,6 +165,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
     classes: [],
     routines: [],
     scheduleBlocks: [],
+    membershipFreezes: [],
     loading: false,
 
     fetchInitialData: async () => {
@@ -216,6 +244,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
                     lastName: u.last_name,
                     age: u.age,
                     email: u.email,
+                    phone: u.phone || undefined,
                     waiverSigned: u.waiver_signed,
                     biometrics: [], // We fetch nested later if needed
                     personalRecords: [],
@@ -258,6 +287,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
                 lastName: data.last_name,
                 age: data.age,
                 email: data.email,
+                phone: data.phone || undefined,
                 waiverSigned: data.waiver_signed,
                 biometrics: data.biometrics || [],
                 personalRecords: data.personal_records || [],
@@ -702,5 +732,113 @@ export const useGymStore = create<GymStore>((set, get) => ({
         } catch (error) {
             console.error('Error deleting routine', error);
         }
+    },
+
+    updateUserProfile: async (userId, data) => {
+        try {
+            const dbData: any = {};
+            if (data.name !== undefined) dbData.name = data.name;
+            if (data.email !== undefined) dbData.email = data.email;
+            if (data.phone !== undefined) dbData.phone = data.phone;
+            const { error } = await supabase.from('users').update(dbData).eq('id', userId);
+            if (error) { console.error('Error updating profile:', error); return false; }
+            set((state) => ({
+                users: state.users.map(u => u.id === userId ? { ...u, ...data } : u),
+                currentUser: state.currentUser?.id === userId ? { ...state.currentUser, ...data } : state.currentUser
+            }));
+            return true;
+        } catch (e: any) { console.error('Exception updating profile', e); return false; }
+    },
+
+    requestFreeze: async ({ freezeStart, freezeEnd, justificationText }) => {
+        const state = get();
+        if (!state.currentUser) return false;
+        try {
+            const autoEndAt = new Date(freezeStart);
+            autoEndAt.setMonth(autoEndAt.getMonth() + 1);
+            const payload = {
+                user_id: state.currentUser.id,
+                freeze_start: freezeStart,
+                freeze_end: freezeEnd,
+                auto_end_at: autoEndAt.toISOString().split('T')[0],
+                justification_text: justificationText,
+                status: 'pending'
+            };
+            const { data, error } = await supabase.from('membership_freezes').insert([payload]).select().single();
+            if (error) { console.error('Error requesting freeze:', error); return false; }
+            if (data) {
+                const newFreeze: MembershipFreeze = {
+                    id: data.id, userId: data.user_id,
+                    requestedAt: data.requested_at, freezeStart: data.freeze_start,
+                    freezeEnd: data.freeze_end, autoEndAt: data.auto_end_at,
+                    status: data.status, justificationText: data.justification_text
+                };
+                set((state) => ({ membershipFreezes: [...state.membershipFreezes, newFreeze] }));
+            }
+            return true;
+        } catch (e: any) { console.error('Exception requesting freeze', e); return false; }
+    },
+
+    getUserFreezes: async (userId) => {
+        try {
+            const { data, error } = await supabase.from('membership_freezes').select('*').eq('user_id', userId);
+            if (error || !data) return [];
+            const freezes: MembershipFreeze[] = data.map(d => ({
+                id: d.id, userId: d.user_id, requestedAt: d.requested_at,
+                freezeStart: d.freeze_start, freezeEnd: d.freeze_end,
+                autoEndAt: d.auto_end_at, status: d.status,
+                justificationText: d.justification_text
+            }));
+            set({ membershipFreezes: freezes });
+            return freezes;
+        } catch (e: any) { console.error('Exception getting freezes', e); return []; }
+    },
+
+    approveFreeze: async (freezeId) => {
+        try {
+            const { error } = await supabase.from('membership_freezes').update({ status: 'active' }).eq('id', freezeId);
+            if (error) { console.error('Error approving freeze:', error); return false; }
+            set((state) => ({
+                membershipFreezes: state.membershipFreezes.map(f => f.id === freezeId ? { ...f, status: 'active' } : f)
+            }));
+            return true;
+        } catch (e: any) { console.error('Exception approving freeze', e); return false; }
+    },
+
+    rejectFreeze: async (freezeId) => {
+        try {
+            const { error } = await supabase.from('membership_freezes').update({ status: 'unfrozen' }).eq('id', freezeId);
+            if (error) { console.error('Error rejecting freeze:', error); return false; }
+            set((state) => ({
+                membershipFreezes: state.membershipFreezes.map(f => f.id === freezeId ? { ...f, status: 'unfrozen' } : f)
+            }));
+            return true;
+        } catch (e: any) { console.error('Exception rejecting freeze', e); return false; }
+    },
+
+    confirmAttendance: async (classId) => {
+        const state = get();
+        if (!state.currentUser) return false;
+        try {
+            const { error } = await supabase.from('class_enrollments')
+                .update({ is_confirmed: true, confirmed_at: new Date().toISOString() })
+                .eq('class_id', classId)
+                .eq('student_id', state.currentUser.id);
+            if (error) { console.error('Error confirming attendance:', error); return false; }
+            set((state) => ({
+                classes: state.classes.map(c => {
+                    if (c.id !== classId) return c;
+                    return {
+                        ...c,
+                        enrollments: c.enrollments?.map(e =>
+                            e.studentId === state.currentUser!.id
+                                ? { ...e, isConfirmed: true, confirmedAt: new Date().toISOString() }
+                                : e
+                        ) || []
+                    };
+                })
+            }));
+            return true;
+        } catch (e: any) { console.error('Exception confirming attendance', e); return false; }
     }
 }));

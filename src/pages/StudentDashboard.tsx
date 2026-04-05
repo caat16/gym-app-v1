@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react';
 import { useGymStore } from '../store/useStore';
 import { differenceInDays } from 'date-fns';
-import { AlertTriangle, Activity, Target, Dumbbell, Trophy, Plus, X, BarChart3, TrendingUp } from 'lucide-react';
+import { AlertTriangle, Activity, Target, Dumbbell, Trophy, Plus, X, BarChart3, TrendingUp, Snowflake, CheckCircle2, MessageCircle } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import ChatbotFaq from '../components/ChatbotFaq';
 
 export default function StudentDashboard() {
-    const { currentUser, addBiometrics, addPersonalRecord } = useGymStore();
+    const { currentUser, addBiometrics, addPersonalRecord, requestFreeze, confirmAttendance } = useGymStore();
 
     // Tabs
     const [activeTab, setActiveTab] = useState<'overview' | 'evolution'>('overview');
@@ -19,6 +20,11 @@ export default function StudentDashboard() {
     const [prForm, setPrForm] = useState({ exerciseName: '', value: '', unit: 'kg' });
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // Freeze Modal State
+    const [showFreezeModal, setShowFreezeModal] = useState(false);
+    const [freezeForm, setFreezeForm] = useState({ start: '', end: '', justification: '' });
+    const [isFreezingSubmitting, setIsFreezingSubmitting] = useState(false);
+
     if (!currentUser) return null;
 
     const currentPlan = useGymStore(state =>
@@ -28,6 +34,11 @@ export default function StudentDashboard() {
     const subEndDate = currentUser.subscription?.endDate ? new Date(currentUser.subscription.endDate) : null;
     const daysRemaining = subEndDate ? differenceInDays(subEndDate, new Date()) : 0;
     const isExpiringSoon = daysRemaining > 0 && daysRemaining <= 5;
+    const isPowerPlatePlan = currentPlan?.name?.toLowerCase().includes('power plate') || false;
+    const sessionsTotal = currentUser.subscription?.sessions || 0;
+    const sessionsUsed = 0; // would come from subscription.sessions_used
+    const sessionsRemaining = Math.max(0, sessionsTotal - sessionsUsed);
+    const isSessionsAlert = isPowerPlatePlan && sessionsTotal > 0 && sessionsRemaining <= 3;
 
     // Biometrics Chart Data
     const bioChartData = [...(currentUser.biometrics || [])].reverse().map(record => ({
@@ -43,6 +54,8 @@ export default function StudentDashboard() {
     const routines = useGymStore(state => state.routines);
     const myRoutines = routines.filter(r => r.assignedTo === currentUser.id || (r.planId && currentPlan && r.planId === currentPlan.id));
     const myPrs = currentUser.personalRecords || [];
+    const classes = useGymStore(state => state.classes);
+    const myEnrolledClasses = classes.filter(c => c.enrolledStudents?.includes(currentUser.id));
 
     // PR Chart Data & Filters
     const uniquePrExercises = Array.from(new Set(myPrs.map(pr => pr.exerciseName)));
@@ -122,16 +135,45 @@ export default function StudentDashboard() {
                 </div>
             </header>
 
+            {/* Alerta de Sesiones Power Plate */}
+            {isSessionsAlert && (
+                <div className="bg-[#39ff14]/5 border border-[#39ff14]/30 rounded-xl p-4 flex items-center justify-between">
+                    <div className="flex items-start gap-3">
+                        <AlertTriangle className="w-6 h-6 text-[#39ff14] flex-shrink-0 mt-0.5" />
+                        <div>
+                            <h4 className="text-[#39ff14] font-semibold">¡Pocas sesiones restantes!</h4>
+                            <p className="text-sm text-slate-300 mt-1">Te quedan <strong>{sessionsRemaining}</strong> de {sessionsTotal} sesiones de Power Plate. Considera renovar tu paquete.</p>
+                        </div>
+                    </div>
+                    {currentUser.phone && (
+                        <a href={`https://wa.me/${currentUser.phone.replace(/\D/g, '')}?text=${encodeURIComponent('Hola! Me quedan ' + sessionsRemaining + ' sesiones de Power Plate y quiero renovar mi paquete.')}`}
+                            target="_blank" rel="noreferrer"
+                            className="ml-4 flex-shrink-0 flex items-center gap-1.5 text-xs font-bold bg-green-500/20 text-green-400 hover:bg-green-500 hover:text-white px-3 py-2 rounded-lg transition-colors">
+                            <MessageCircle className="w-4 h-4" /> WhatsApp
+                        </a>
+                    )}
+                </div>
+            )}
+
             {/* Alerta de Vencimiento de Plan */}
             {isExpiringSoon && (
-                <div className="bg-orange-500/10 border border-orange-500/50 rounded-xl p-4 flex items-start gap-3 animate-pulse-slow">
-                    <AlertTriangle className="w-6 h-6 text-[#ff6a00] flex-shrink-0 mt-0.5" />
-                    <div>
-                        <h4 className="text-[#ff6a00] font-semibold">¡Tu plan vence pronto!</h4>
-                        <p className="text-sm text-slate-300 mt-1">
-                            Tu {currentPlan?.name || 'Suscripción'} termina en {daysRemaining} día{daysRemaining !== 1 ? 's' : ''}. Asegúrate de renovarlo para no perder acceso.
-                        </p>
+                <div className="bg-orange-500/10 border border-orange-500/50 rounded-xl p-4 flex items-center justify-between">
+                    <div className="flex items-start gap-3">
+                        <AlertTriangle className="w-6 h-6 text-[#ff6a00] flex-shrink-0 mt-0.5" />
+                        <div>
+                            <h4 className="text-[#ff6a00] font-semibold">¡Tu plan vence pronto!</h4>
+                            <p className="text-sm text-slate-300 mt-1">
+                                Tu {currentPlan?.name || 'Suscripción'} termina en {daysRemaining} día{daysRemaining !== 1 ? 's' : ''}. Renuévalo para no perder acceso.
+                            </p>
+                        </div>
                     </div>
+                    {currentUser.phone && (
+                        <a href={`https://wa.me/${currentUser.phone.replace(/\D/g, '')}?text=${encodeURIComponent('Hola! Mi plan ' + (currentPlan?.name || '') + ' vence en ' + daysRemaining + ' días, ¿cómo puedo renovarlo?')}`}
+                            target="_blank" rel="noreferrer"
+                            className="ml-4 flex-shrink-0 flex items-center gap-1.5 text-xs font-bold bg-green-500/20 text-green-400 hover:bg-green-500 hover:text-white px-3 py-2 rounded-lg transition-colors">
+                            <MessageCircle className="w-4 h-4" /> Contactar
+                        </a>
+                    )}
                 </div>
             )}
 
@@ -211,6 +253,67 @@ export default function StudentDashboard() {
                                 </div>
                             )}
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Tarjeta de Congelamiento */}
+            {currentUser.subscription && (
+                <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400"><Snowflake className="w-5 h-5" /></div>
+                            <div>
+                                <h3 className="font-semibold text-white">Pausar Membresía</h3>
+                                <p className="text-xs text-slate-400 mt-0.5">Congela tu plan por inasistencia justificada (mín. 6 días)</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setShowFreezeModal(true)}
+                            className="text-sm font-bold bg-blue-500/20 text-blue-400 hover:bg-blue-500 hover:text-white px-4 py-2 rounded-lg transition-colors">
+                            Solicitar
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Mis Clases — Confirmación de Asistencia (Power Plate) */}
+            {isPowerPlatePlan && myEnrolledClasses.length > 0 && (
+                <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 bg-purple-500/20 rounded-lg text-purple-400"><CheckCircle2 className="w-5 h-5" /></div>
+                        <h3 className="font-semibold text-white">Confirmar Asistencia</h3>
+                    </div>
+                    <div className="space-y-2">
+                        {myEnrolledClasses.map(cls => {
+                            const classStart = new Date(cls.startTime);
+                            const hoursUntil = differenceInDays(classStart, new Date()) * 24;
+                            const canConfirm = hoursUntil <= 24 && hoursUntil > 0;
+                            const myEnrollment = cls.enrollments?.find(e => e.studentId === currentUser.id);
+                            const alreadyConfirmed = myEnrollment?.isConfirmed;
+                            return (
+                                <div key={cls.id} className="flex items-center justify-between bg-slate-900/50 border border-slate-700 rounded-xl p-3">
+                                    <div>
+                                        <p className="font-medium text-white text-sm">{cls.name}</p>
+                                        <p className="text-xs text-slate-400">{classStart.toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+                                    </div>
+                                    {alreadyConfirmed ? (
+                                        <span className="flex items-center gap-1 text-xs text-[#39ff14] font-bold"><CheckCircle2 className="w-4 h-4" /> Confirmado</span>
+                                    ) : canConfirm ? (
+                                        <button
+                                            onClick={async () => {
+                                                await confirmAttendance(cls.id);
+                                                alert('¡Asistencia confirmada!');
+                                            }}
+                                            className="text-xs font-bold bg-purple-500/20 text-purple-400 hover:bg-purple-600 hover:text-white px-3 py-1.5 rounded-lg transition-colors">
+                                            Confirmar
+                                        </button>
+                                    ) : (
+                                        <span className="text-xs text-slate-500">Disponible 24h antes</span>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             )}
@@ -486,6 +589,60 @@ export default function StudentDashboard() {
                     </div>
                 </div>
             )}
+
+            {/* Modal Solicitar Congelamiento */}
+            {showFreezeModal && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                    <div className="bg-[#1e293b] border border-slate-700 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-fade-in">
+                        <div className="flex justify-between items-center p-4 border-b border-slate-700 bg-slate-800/50">
+                            <h3 className="font-bold text-white flex items-center gap-2"><Snowflake className="w-5 h-5 text-blue-400" /> Solicitar Pausa</h3>
+                            <button onClick={() => setShowFreezeModal(false)} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
+                        </div>
+                        <form onSubmit={async (e) => {
+                            e.preventDefault();
+                            const start = new Date(freezeForm.start);
+                            const end = new Date(freezeForm.end);
+                            const minEnd = new Date(start);
+                            minEnd.setDate(minEnd.getDate() + 6);
+                            const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+                            if (start < tomorrow) { alert('La fecha de inicio debe ser al menos mañana.'); return; }
+                            if (end < minEnd) { alert('La duración mínima del congelamiento es de 6 días.'); return; }
+                            if (!freezeForm.justification.trim()) { alert('Debes ingresar una justificación.'); return; }
+                            setIsFreezingSubmitting(true);
+                            const ok = await requestFreeze({ freezeStart: freezeForm.start, freezeEnd: freezeForm.end, justificationText: freezeForm.justification });
+                            setIsFreezingSubmitting(false);
+                            if (ok) { alert('¡Solicitud de pausa enviada! El administrador la revisará.'); setShowFreezeModal(false); }
+                        }} className="p-6 space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-400 mb-1">Inicio de Pausa</label>
+                                    <input type="date" required value={freezeForm.start} onChange={e => setFreezeForm({ ...freezeForm, start: e.target.value })}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3 text-white focus:ring-1 focus:ring-blue-500" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-400 mb-1">Fin de Pausa</label>
+                                    <input type="date" required value={freezeForm.end} onChange={e => setFreezeForm({ ...freezeForm, end: e.target.value })}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3 text-white focus:ring-1 focus:ring-blue-500" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-slate-400 mb-1">Justificación</label>
+                                <textarea required rows={3} value={freezeForm.justification} onChange={e => setFreezeForm({ ...freezeForm, justification: e.target.value })}
+                                    placeholder="Ej: Viaje de trabajo, lesión, etc."
+                                    className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3 text-white focus:ring-1 focus:ring-blue-500 resize-none" />
+                            </div>
+                            <p className="text-xs text-slate-500">Reglas: mín. 6 días · inicio con 1 día de antelación · duración máx. 1 mes</p>
+                            <button type="submit" disabled={isFreezingSubmitting}
+                                className="w-full py-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 transition-colors">
+                                {isFreezingSubmitting ? 'Enviando...' : 'Enviar Solicitud'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Chatbot FAQ flotante */}
+            <ChatbotFaq adminPhone="591XXXXXXXX" />
         </div>
     );
 }

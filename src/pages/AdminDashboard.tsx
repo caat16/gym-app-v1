@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGymStore } from '../store/useStore';
-import { ShieldAlert, UserPlus, Users, DollarSign, Activity, Trash2, CalendarDays, Dumbbell, Clock, Eye, X, PlusCircle } from 'lucide-react';
+import { ShieldAlert, UserPlus, Users, DollarSign, Activity, Trash2, CalendarDays, Dumbbell, Clock, Eye, X, PlusCircle, Snowflake, MessageCircle, Edit2 } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
 
 export default function AdminDashboard() {
     const {
-        users, plans, classes, routines, scheduleBlocks,
+        users, plans, classes, routines, scheduleBlocks, membershipFreezes,
         registerTrainer, deleteUser, deleteClass, deleteRoutine,
-        createScheduleBlocks, deleteScheduleBlock, assignRoutine
+        createScheduleBlocks, deleteScheduleBlock, assignRoutine,
+        approveFreeze, rejectFreeze, getUserFreezes, updateUserProfile
     } = useGymStore();
 
     // Formularios
@@ -28,6 +29,20 @@ export default function AdminDashboard() {
     const [duplicateStudent, setDuplicateStudent] = useState('');
     const [duplicatePlan, setDuplicatePlan] = useState('');
     const [duplicateName, setDuplicateName] = useState('');
+
+    // Profile Edit State
+    const [editingUser, setEditingUser] = useState<typeof users[0] | null>(null);
+    const [editName, setEditName] = useState('');
+    const [editEmail, setEditEmail] = useState('');
+    const [editPhone, setEditPhone] = useState('');
+    const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+    // Freeze Panel Loading
+    const [freezeLoading, setFreezeLoading] = useState(false);
+
+    useEffect(() => {
+        getUserFreezes('all' as unknown as string); // fetches all freezes
+    }, []);
     const [duplicateExercises, setDuplicateExercises] = useState<any[]>([]);
 
     const openDuplicateModal = (routine: typeof routines[0]) => {
@@ -165,13 +180,59 @@ export default function AdminDashboard() {
 
                 {/* Alertas de Vencimiento de Pagos */}
                 {expiringStudents.length > 0 && (
-                    <div className="bg-orange-500/10 border border-orange-500/50 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center gap-4 animate-pulse-slow">
+                    <div className="bg-orange-500/10 border border-orange-500/50 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center gap-4">
                         <ShieldAlert className="w-8 h-8 text-[#ff6a00] flex-shrink-0" />
                         <div className="flex-1">
                             <h4 className="text-[#ff6a00] font-bold text-lg">Atención: {expiringStudents.length} {expiringStudents.length === 1 ? 'Alumno' : 'Alumnos'} por vencer</h4>
-                            <p className="text-sm text-slate-300">
-                                Hay planes que vencen en 5 días o menos. El sistema disparará correos automáticamente al alumno.
-                            </p>
+                            <div className="mt-2 space-y-1">
+                                {expiringStudents.map(s => (
+                                    <div key={s.id} className="flex items-center justify-between text-sm">
+                                        <span className="text-slate-300">{s.name} {s.lastName}</span>
+                                        {s.phone && (
+                                            <a href={`https://wa.me/${s.phone.replace(/\D/g, '')}?text=${encodeURIComponent('Hola ' + s.name + '! Tu plan en GymFlow Pro vence pronto. Renuévalo para seguir entrenando.')}`}
+                                                target="_blank" rel="noreferrer"
+                                                className="flex items-center gap-1 text-xs bg-green-500/20 text-green-400 hover:bg-green-500 hover:text-white px-2 py-1 rounded-lg transition-colors">
+                                                <MessageCircle className="w-3 h-3" /> WhatsApp
+                                            </a>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Panel de Solicitudes de Congelamiento */}
+                {membershipFreezes.filter(f => f.status === 'pending').length > 0 && (
+                    <div className="bg-blue-500/5 border border-blue-500/30 rounded-xl p-5">
+                        <h4 className="font-bold text-white flex items-center gap-2 mb-4"><Snowflake className="w-5 h-5 text-blue-400" /> Solicitudes de Pausa de Membresía</h4>
+                        <div className="space-y-3">
+                            {membershipFreezes.filter(f => f.status === 'pending').map(freeze => {
+                                const student = users.find(u => u.id === freeze.userId);
+                                return (
+                                    <div key={freeze.id} className="flex flex-col md:flex-row md:items-center justify-between bg-slate-800 border border-slate-700 rounded-xl p-4 gap-3">
+                                        <div>
+                                            <p className="font-semibold text-white">{student?.name} {student?.lastName}</p>
+                                            <p className="text-xs text-slate-400 mt-0.5">
+                                                Periodo: <span className="text-slate-300">{freeze.freezeStart}</span> → <span className="text-slate-300">{freeze.freezeEnd}</span>
+                                            </p>
+                                            <p className="text-xs text-slate-500 mt-1">«{freeze.justificationText}»</p>
+                                        </div>
+                                        <div className="flex gap-2 flex-shrink-0">
+                                            <button onClick={async () => { setFreezeLoading(true); await approveFreeze(freeze.id); setFreezeLoading(false); alert('Pausa aprobada.'); }}
+                                                disabled={freezeLoading}
+                                                className="text-xs font-bold bg-blue-600/30 text-blue-300 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                                                Aprobar
+                                            </button>
+                                            <button onClick={async () => { setFreezeLoading(true); await rejectFreeze(freeze.id); setFreezeLoading(false); alert('Pausa rechazada.'); }}
+                                                disabled={freezeLoading}
+                                                className="text-xs font-bold bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                                                Rechazar
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
                 )}
@@ -304,9 +365,15 @@ export default function AdminDashboard() {
                                                         </span>
                                                     </td>
                                                     <td className="px-3 py-2 text-right">
-                                                        <button onClick={() => confirmDeleteUser(s.id, s.name)} className="text-slate-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </button>
+                                                        <div className="flex items-center justify-end gap-1">
+                                                            <button onClick={() => { setEditingUser(s); setEditName(s.name); setEditEmail(s.email); setEditPhone(s.phone || ''); }}
+                                                                className="text-slate-500 hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <Edit2 className="w-4 h-4" />
+                                                            </button>
+                                                            <button onClick={() => confirmDeleteUser(s.id, s.name)} className="text-slate-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             )
@@ -432,8 +499,8 @@ export default function AdminDashboard() {
                                                         }
                                                     }}
                                                     className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${isSelected
-                                                            ? 'bg-indigo-600 text-white shadow-[0_0_10px_rgba(79,70,229,0.4)]'
-                                                            : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-600'
+                                                        ? 'bg-indigo-600 text-white shadow-[0_0_10px_rgba(79,70,229,0.4)]'
+                                                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-600'
                                                         }`}
                                                 >
                                                     {day.label}
@@ -601,6 +668,46 @@ export default function AdminDashboard() {
                                 <PlusCircle className="w-5 h-5" /> Utilizar esta estructura
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: Editar Perfil de Alumno */}
+            {editingUser && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                    <div className="bg-[#1e293b] border border-slate-700 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-fade-in">
+                        <div className="flex justify-between items-center p-4 border-b border-slate-700 bg-slate-800/50">
+                            <h3 className="font-bold text-white flex items-center gap-2"><Edit2 className="w-5 h-5 text-blue-400" /> Editar Perfil</h3>
+                            <button onClick={() => setEditingUser(null)} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
+                        </div>
+                        <form onSubmit={async (e) => {
+                            e.preventDefault();
+                            setIsSavingProfile(true);
+                            const ok = await updateUserProfile(editingUser.id, { name: editName, email: editEmail, phone: editPhone });
+                            setIsSavingProfile(false);
+                            if (ok) { setEditingUser(null); }
+                            else { alert('Error al actualizar el perfil. Intenta de nuevo.'); }
+                        }} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-xs font-medium text-slate-400 mb-1">Nombre</label>
+                                <input type="text" required value={editName} onChange={e => setEditName(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3 text-white focus:ring-1 focus:ring-blue-500" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-slate-400 mb-1">Correo Electrónico</label>
+                                <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3 text-white focus:ring-1 focus:ring-blue-500" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-slate-400 mb-1">Celular</label>
+                                <input type="tel" placeholder="+591 777..." value={editPhone} onChange={e => setEditPhone(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3 text-white focus:ring-1 focus:ring-blue-500" />
+                            </div>
+                            <button type="submit" disabled={isSavingProfile}
+                                className="w-full py-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 transition-colors">
+                                {isSavingProfile ? 'Guardando...' : 'Guardar Cambios'}
+                            </button>
+                        </form>
                     </div>
                 </div>
             )}
