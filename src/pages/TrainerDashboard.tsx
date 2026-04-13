@@ -873,9 +873,9 @@ export default function TrainerDashboard() {
                                 className="flex items-center justify-between p-3 rounded-lg bg-gray-800/50 border border-gray-700 hover:border-neon-green/30 transition-colors"
                             >
                                 <div className="flex flex-col">
-                                    <span className="text-sm font-medium text-white">{routine.nombre}</span>
+                                    <span className="text-sm font-medium text-white">{routine.name}</span>
                                     <span className="text-xs text-gray-400">
-                                        {routine.es_global ? 'Plan Global' : `Estudiante: ${routine.estudiante_nombre}`}
+                                        {routine.planId ? 'Plan Global' : `Estudiante: ${users.find(u => u.id === routine.assignedTo)?.name || 'Asignado'}`}
                                     </span>
                                 </div>
                                 <button
@@ -919,8 +919,5 @@ export default function TrainerDashboard() {
                 </div>
             )}
         </div>
-        </div >
     );
-};
-
-export default TrainerDashboard;
+}
