@@ -5,6 +5,7 @@ import { AlertTriangle, Activity, Target, Dumbbell, Trophy, Plus, X, BarChart3, 
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import ChatbotFaq from '../components/ChatbotFaq';
 import ExpiryAlertModal from '../components/ExpiryAlertModal';
+import WhatsAppContactButton from '../components/WhatsAppContactButton';
 
 export default function StudentDashboard() {
     const { currentUser, addBiometrics, addPersonalRecord, requestFreeze, confirmAttendance } = useGymStore();
@@ -65,7 +66,18 @@ export default function StudentDashboard() {
 
     // Routines & PRs
     const routines = useGymStore(state => state.routines);
-    const myRoutines = routines.filter(r => r.assignedTo === currentUser.id || (r.planId && currentPlan && r.planId === currentPlan.id));
+    const now = new Date();
+    const myRoutines = routines.filter(r => {
+        const isMyRoutine = r.assignedTo === currentUser.id || (r.planId && currentPlan && r.planId === currentPlan.id);
+        if (!isMyRoutine) return false;
+        // 24h visibility: only show routines assigned in the last 24 hours
+        if (r.assignedAt) {
+            const assignedTime = new Date(r.assignedAt);
+            const hoursSince = (now.getTime() - assignedTime.getTime()) / 3600000;
+            return hoursSince <= 24;
+        }
+        return true; // legacy routines without assignedAt are always shown
+    });
     const myPrs = currentUser.personalRecords || [];
     const classes = useGymStore(state => state.classes);
     const myEnrolledClasses = classes.filter(c => c.enrolledStudents?.includes(currentUser.id));
@@ -158,13 +170,10 @@ export default function StudentDashboard() {
                             <p className="text-sm text-slate-300 mt-1">Te quedan <strong>{sessionsRemaining}</strong> de {sessionsTotal} sesiones de Power Plate. Considera renovar tu paquete.</p>
                         </div>
                     </div>
-                    {currentUser.phone && (
-                        <a href={`https://wa.me/${currentUser.phone.replace(/\D/g, '')}?text=${encodeURIComponent('Hola! Me quedan ' + sessionsRemaining + ' sesiones de Power Plate y quiero renovar mi paquete.')}`}
-                            target="_blank" rel="noreferrer"
-                            className="ml-4 flex-shrink-0 flex items-center gap-1.5 text-xs font-bold bg-green-500/20 text-green-400 hover:bg-green-500 hover:text-white px-3 py-2 rounded-lg transition-colors">
-                            <MessageCircle className="w-4 h-4" /> WhatsApp
-                        </a>
-                    )}
+                    <WhatsAppContactButton
+                        userName={`${currentUser.name} ${currentUser.lastName}`}
+                        planName={currentPlan?.name || 'Power Plate'}
+                    />
                 </div>
             )}
 

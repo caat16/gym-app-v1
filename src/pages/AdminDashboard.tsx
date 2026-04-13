@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useGymStore } from '../store/useStore';
-import { ShieldAlert, UserPlus, Users, DollarSign, Activity, Trash2, CalendarDays, Dumbbell, Clock, Eye, X, PlusCircle, Snowflake, MessageCircle, Edit2 } from 'lucide-react';
+import { ShieldAlert, UserPlus, Users, DollarSign, Activity, Trash2, CalendarDays, Dumbbell, Clock, Eye, X, PlusCircle, Snowflake, MessageCircle, Edit2, Layers, Zap, BarChart2, Filter } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
 
 export default function AdminDashboard() {
@@ -8,7 +8,8 @@ export default function AdminDashboard() {
         users, plans, classes, routines, scheduleBlocks, membershipFreezes,
         registerTrainer, deleteUser, deleteClass, deleteRoutine,
         createScheduleBlocks, deleteScheduleBlock, assignRoutine,
-        approveFreeze, rejectFreeze, getUserFreezes, updateUserProfile
+        approveFreeze, rejectFreeze, getUserFreezes, updateUserProfile,
+        assignTrainerDiscipline, trainerDisciplines, getTrainerDisciplines, removeTrainerDiscipline
     } = useGymStore();
 
     // Formularios
@@ -41,8 +42,63 @@ export default function AdminDashboard() {
     const [freezeLoading, setFreezeLoading] = useState(false);
 
     useEffect(() => {
-        getUserFreezes('all' as unknown as string); // fetches all freezes
+        getUserFreezes('all' as unknown as string);
+        getTrainerDisciplines('all' as unknown as string);
     }, []);
+
+    // --- Retention Filter State ---
+    const [retentionDays, setRetentionDays] = useState(5);
+    const [showChurn, setShowChurn] = useState(false);
+
+    // --- Staff Assignment State ---
+    const [staffTrainerId, setStaffTrainerId] = useState('');
+    const [staffPlanId, setStaffPlanId] = useState('');
+    const [staffSaving, setStaffSaving] = useState(false);
+
+    // --- Power Plate Auto-Schedule Generator ---
+    const [isGeneratingSchedule, setIsGeneratingSchedule] = useState(false);
+
+    const handleGeneratePowerPlateSchedule = async () => {
+        const confirmed = window.confirm(
+            '¿Confirmar generación de horarios Power Plate para las próximas 4 semanas?\n' +
+            'Se crearán slots de 30 min de L-V (6:00-10:30 y 16:00-20:00) y Sábados (7:00-11:30).\n' +
+            'Cupo máximo: 3 personas por slot. Total estimado: ~376 slots.'
+        );
+        if (!confirmed) return;
+        setIsGeneratingSchedule(true);
+        const blocks: { dayOfWeek: number; startTime: string; endTime: string; capacity: number }[] = [];
+        const today = new Date();
+        // L-V morning (6:00-10:30), L-V afternoon (16:00-20:00), Sat (7:00-11:30)
+        const weekdayMorningSlots: [string, string][] = [
+            ['06:00', '06:30'], ['06:30', '07:00'], ['07:00', '07:30'], ['07:30', '08:00'],
+            ['08:00', '08:30'], ['08:30', '09:00'], ['09:00', '09:30'], ['09:30', '10:00'], ['10:00', '10:30']
+        ];
+        const weekdayAfternoonSlots: [string, string][] = [
+            ['16:00', '16:30'], ['16:30', '17:00'], ['17:00', '17:30'], ['17:30', '18:00'],
+            ['18:00', '18:30'], ['18:30', '19:00'], ['19:00', '19:30'], ['19:30', '20:00']
+        ];
+        const saturdaySlots: [string, string][] = [
+            ['07:00', '07:30'], ['07:30', '08:00'], ['08:00', '08:30'], ['08:30', '09:00'],
+            ['09:00', '09:30'], ['09:30', '10:00'], ['10:00', '10:30'], ['10:30', '11:00'], ['11:00', '11:30']
+        ];
+        for (let week = 0; week < 4; week++) {
+            for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+                const d = new Date(today);
+                d.setDate(today.getDate() + week * 7 + dayOffset);
+                const dow = d.getDay(); // 0=Sun,1=Mon,...,6=Sat
+                if (dow >= 1 && dow <= 5) {
+                    weekdayMorningSlots.forEach(([s, e]) => blocks.push({ dayOfWeek: dow, startTime: s, endTime: e, capacity: 3 }));
+                    weekdayAfternoonSlots.forEach(([s, e]) => blocks.push({ dayOfWeek: dow, startTime: s, endTime: e, capacity: 3 }));
+                } else if (dow === 6) {
+                    saturdaySlots.forEach(([s, e]) => blocks.push({ dayOfWeek: 6, startTime: s, endTime: e, capacity: 3 }));
+                }
+            }
+        }
+        const success = await createScheduleBlocks(blocks);
+        setIsGeneratingSchedule(false);
+        if (success) alert(`✅ Horarios generados exitosamente. ${blocks.length} slots creados para las próximas 4 semanas.`);
+        else alert('❌ Error al generar horarios. Por favor intenta de nuevo.');
+    };
     const [duplicateExercises, setDuplicateExercises] = useState<any[]>([]);
 
     const openDuplicateModal = (routine: typeof routines[0]) => {
@@ -236,6 +292,203 @@ export default function AdminDashboard() {
                         </div>
                     </div>
                 )}
+
+                {/* ─── Power Plate: Generador de Horarios ─── */}
+                <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-[#39ff14]/10 rounded-lg text-[#39ff14]"><Zap className="w-5 h-5" /></div>
+                        <div>
+                            <h3 className="font-semibold text-white">Generador de Horarios Power Plate</h3>
+                            <p className="text-xs text-slate-400 mt-0.5">Crea todos los slots de las próximas 4 semanas (L-V 6-10:30, 16-20h · Sáb 7-11:30h · cupo máx. 3)</p>
+                        </div>
+                    </div>
+                    <button onClick={handleGeneratePowerPlateSchedule} disabled={isGeneratingSchedule}
+                        className="flex-shrink-0 flex items-center gap-2 bg-[#39ff14]/20 text-[#39ff14] hover:bg-[#39ff14] hover:text-slate-900 font-bold px-4 py-2.5 rounded-xl transition-colors disabled:opacity-50 text-sm">
+                        <Zap className="w-4 h-4" />
+                        {isGeneratingSchedule ? 'Generando...' : 'Generar 4 Semanas'}
+                    </button>
+                </div>
+
+                {/* ─── Filtros de Retención ─── */}
+                <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 bg-orange-500/10 rounded-lg text-orange-400"><Filter className="w-5 h-5" /></div>
+                        <h3 className="font-semibold text-white">Filtros de Retención</h3>
+                    </div>
+                    <div className="flex gap-3 flex-wrap mb-4">
+                        <div className="flex items-center gap-2">
+                            <label className="text-xs text-slate-400 font-medium">Vencen en</label>
+                            <input type="number" min={1} max={60} value={retentionDays}
+                                onChange={e => setRetentionDays(Number(e.target.value))}
+                                className="w-16 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm text-center focus:ring-1 focus:ring-orange-500" />
+                            <label className="text-xs text-slate-400 font-medium">días o menos</label>
+                        </div>
+                        <button onClick={() => setShowChurn(false)}
+                            className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${!showChurn ? 'bg-orange-500 text-white' : 'bg-slate-700 text-slate-400 hover:text-white'}`}>
+                            Por Vencer
+                        </button>
+                        <button onClick={() => setShowChurn(true)}
+                            className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${showChurn ? 'bg-red-600 text-white' : 'bg-slate-700 text-slate-400 hover:text-white'}`}>
+                            Churn (No renovaron)
+                        </button>
+                    </div>
+                    {showChurn ? (
+                        /* Churn Report */
+                        <div>
+                            <p className="text-xs text-slate-500 mb-2 font-medium">Alumnos con plan vencido que no han renovado:</p>
+                            {students.filter(s => {
+                                if (!s.subscription) return true;
+                                return differenceInDays(new Date(s.subscription.endDate), new Date()) < 0;
+                            }).length === 0 ? (
+                                <p className="text-slate-400 text-sm italic">¡No hay alumnos en churn!</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {students.filter(s => {
+                                        if (!s.subscription) return true;
+                                        return differenceInDays(new Date(s.subscription.endDate), new Date()) < 0;
+                                    }).map(s => {
+                                        const daysLate = s.subscription ? Math.abs(differenceInDays(new Date(s.subscription.endDate), new Date())) : 999;
+                                        return (
+                                            <div key={s.id} className="flex items-center justify-between bg-red-500/5 border border-red-500/20 rounded-xl px-4 py-2.5">
+                                                <div>
+                                                    <p className="text-white font-medium text-sm">{s.name} {s.lastName}</p>
+                                                    <p className="text-xs text-red-400 mt-0.5">Vencido hace {daysLate} día{daysLate !== 1 ? 's' : ''}</p>
+                                                </div>
+                                                {s.phone && (
+                                                    <a href={`https://wa.me/${s.phone.replace(/\D/g, '')}?text=${encodeURIComponent('Hola ' + s.name + '! Tu plan en GymFlow Pro venció hace ' + daysLate + ' días. ¿Puedo ayudarte a renovarlo?')}`}
+                                                        target="_blank" rel="noreferrer"
+                                                        className="flex items-center gap-1 text-xs bg-green-500/20 text-green-400 hover:bg-green-500 hover:text-white px-2 py-1 rounded-lg transition-colors">
+                                                        <MessageCircle className="w-3 h-3" /> Re-activar
+                                                    </a>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        /* Retention: Vencen en X días */
+                        <div>
+                            <p className="text-xs text-slate-500 mb-2 font-medium">Alumnos con plan que vence en los próximos {retentionDays} días:</p>
+                            {students.filter(s => {
+                                if (!s.subscription) return false;
+                                const d = differenceInDays(new Date(s.subscription.endDate), new Date());
+                                return d >= 0 && d <= retentionDays;
+                            }).length === 0 ? (
+                                <p className="text-slate-400 text-sm italic">Ningún alumno vence en ese rango.</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {students.filter(s => {
+                                        if (!s.subscription) return false;
+                                        const d = differenceInDays(new Date(s.subscription.endDate), new Date());
+                                        return d >= 0 && d <= retentionDays;
+                                    }).map(s => {
+                                        const d = differenceInDays(new Date(s.subscription!.endDate), new Date());
+                                        return (
+                                            <div key={s.id} className="flex items-center justify-between bg-orange-500/5 border border-orange-500/20 rounded-xl px-4 py-2.5">
+                                                <div>
+                                                    <p className="text-white font-medium text-sm">{s.name} {s.lastName}</p>
+                                                    <p className="text-xs text-orange-400 mt-0.5">Vence en {d} día{d !== 1 ? 's' : ''}</p>
+                                                </div>
+                                                {s.phone && (
+                                                    <a href={`https://wa.me/${s.phone.replace(/\D/g, '')}?text=${encodeURIComponent('Hola ' + s.name + '! Tu plan en GymFlow Pro vence en ' + d + ' días. Renuévalo para seguir entrenando.')}`}
+                                                        target="_blank" rel="noreferrer"
+                                                        className="flex items-center gap-1 text-xs bg-green-500/20 text-green-400 hover:bg-green-500 hover:text-white px-2 py-1 rounded-lg transition-colors">
+                                                        <MessageCircle className="w-3 h-3" /> WhatsApp
+                                                    </a>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {/* ─── Asignación de Disciplinas a Entrenadores ─── */}
+                <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 bg-purple-500/10 rounded-lg text-purple-400"><Layers className="w-5 h-5" /></div>
+                        <h3 className="font-semibold text-white">Asignar Entrenador a Disciplina</h3>
+                    </div>
+                    <div className="flex gap-3 flex-wrap items-end">
+                        <div>
+                            <label className="block text-xs text-slate-400 mb-1">Entrenador</label>
+                            <select value={staffTrainerId} onChange={e => setStaffTrainerId(e.target.value)}
+                                className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm focus:ring-1 focus:ring-purple-500">
+                                <option value="">Seleccionar entrenador...</option>
+                                {trainers.map(t => <option key={t.id} value={t.id}>{t.name} {t.lastName}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs text-slate-400 mb-1">Disciplina (Plan)</label>
+                            <select value={staffPlanId} onChange={e => setStaffPlanId(e.target.value)}
+                                className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm focus:ring-1 focus:ring-purple-500">
+                                <option value="">Seleccionar plan...</option>
+                                {plans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            </select>
+                        </div>
+                        <button disabled={!staffTrainerId || !staffPlanId || staffSaving}
+                            onClick={async () => {
+                                setStaffSaving(true);
+                                const ok = await assignTrainerDiscipline(staffTrainerId, staffPlanId);
+                                setStaffSaving(false);
+                                if (ok) { setStaffTrainerId(''); setStaffPlanId(''); }
+                            }}
+                            className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-4 py-2 rounded-xl transition-colors disabled:opacity-50 text-sm flex items-center gap-2">
+                            <Layers className="w-4 h-4" /> {staffSaving ? 'Asignando...' : 'Asignar'}
+                        </button>
+                    </div>
+                    {/* Current Assignments */}
+                    {trainerDisciplines.length > 0 && (
+                        <div className="mt-4 space-y-2">
+                            {trainerDisciplines.map(d => {
+                                const trainer = trainers.find(t => t.id === d.trainerId);
+                                const plan = plans.find(p => p.id === d.planId);
+                                return (
+                                    <div key={d.id} className="flex items-center justify-between bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-2 text-sm">
+                                        <span className="text-white">{trainer?.name} {trainer?.lastName} — <span className="text-purple-400">{plan?.name}</span></span>
+                                        <button onClick={() => removeTrainerDiscipline(d.id)} className="text-slate-500 hover:text-red-400 transition-colors"><X className="w-4 h-4" /></button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                {/* ─── Notificaciones Power Plate (Confirmaciones de hoy) ─── */}
+                {(() => {
+                    const todayStr = new Date().toDateString();
+                    const todayConfirmed = classes.filter(c => {
+                        const cDate = new Date(c.startTime).toDateString();
+                        return cDate === todayStr && c.enrollments?.some(e => e.isConfirmed);
+                    });
+                    if (todayConfirmed.length === 0) return null;
+                    return (
+                        <div className="bg-[#39ff14]/5 border border-[#39ff14]/30 rounded-2xl p-5">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="p-2 bg-[#39ff14]/10 rounded-lg text-[#39ff14]"><BarChart2 className="w-5 h-5" /></div>
+                                <h3 className="font-semibold text-white">Confirmaciones Power Plate — Hoy</h3>
+                            </div>
+                            <div className="space-y-2">
+                                {todayConfirmed.map(cls => {
+                                    const confirmed = cls.enrollments?.filter(e => e.isConfirmed) || [];
+                                    return (
+                                        <div key={cls.id} className="flex items-center justify-between bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5">
+                                            <div>
+                                                <p className="text-white font-medium text-sm">{cls.name}</p>
+                                                <p className="text-xs text-slate-400">{new Date(cls.startTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</p>
+                                            </div>
+                                            <span className="text-xs font-bold text-[#39ff14] bg-[#39ff14]/10 px-2.5 py-1 rounded-full">{confirmed.length} confirmado{confirmed.length !== 1 ? 's' : ''}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    );
+                })()}
 
                 {/* Panel Financiero */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

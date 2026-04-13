@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGymStore } from '../store/useStore';
 import type { ClassSession } from '../store/useStore';
-import { Users, Calendar, PlusCircle, Search, Trophy, Medal, CheckSquare, Square, AlertTriangle, Trash2, X, Clock, ChevronDown, ChevronUp, Eye } from 'lucide-react';
+import { Users, Calendar, PlusCircle, Search, Trophy, Medal, CheckSquare, Square, AlertTriangle, Trash2, X, Clock, ChevronDown, ChevronUp, Eye, Layers } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
 
 export default function TrainerDashboard() {
-    const { classes, users, plans, routines, assignRoutine, addPersonalRecord, markAttendance, createClass, currentUser } = useGymStore();
+    const { classes, users, plans, routines, assignRoutine, addPersonalRecord, markAttendance, createClass, currentUser,
+        trainerDisciplines, getTrainerDisciplines, removeTrainerDiscipline } = useGymStore();
     const [selectedStudent, setSelectedStudent] = useState('');
     const [assignTarget, setAssignTarget] = useState<'student' | 'plan'>('student');
     const [selectedPlanForRoutine, setSelectedPlanForRoutine] = useState('');
@@ -39,6 +40,11 @@ export default function TrainerDashboard() {
     // Class Filter
     const [classFilter, setClassFilter] = useState<'today' | 'upcoming'>('today');
     const [expandedClassId, setExpandedClassId] = useState<string | null>(null);
+
+    // Load disciplines on mount
+    useEffect(() => {
+        if (currentUser?.id) getTrainerDisciplines(currentUser.id);
+    }, [currentUser?.id]);
 
     // Formatear hora: c.startTime -> '18:00'
     const formatTime = (isoString: string) => {
@@ -856,5 +862,36 @@ export default function TrainerDashboard() {
                 )}
             </div>
         </div>
+
+            {/* Mis Disciplinas */ }
+    {
+        trainerDisciplines.length > 0 && (
+            <div className="mt-8 bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl">
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 bg-purple-500/20 rounded-lg text-purple-400">
+                        <Layers className="w-5 h-5" />
+                    </div>
+                    <h3 className="font-bold text-white text-lg">Mis Disciplinas</h3>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                    {trainerDisciplines.map(d => {
+                        const plan = plans.find(p => p.id === d.planId);
+                        return (
+                            <div key={d.id} className="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-full px-4 py-2">
+                                <span className="w-2 h-2 rounded-full bg-[#39ff14]" />
+                                <span className="text-white font-medium text-sm">{plan?.name || 'Disciplina'}</span>
+                                <button
+                                    onClick={() => removeTrainerDiscipline(d.id)}
+                                    className="text-slate-500 hover:text-red-400 transition-colors ml-1">
+                                    <X className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        )
+    }
+        </div >
     );
 }

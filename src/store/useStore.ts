@@ -96,9 +96,17 @@ export interface ClassSession {
 export interface Routine {
     id: string;
     name: string;
-    assignedTo?: string | null; // User ID
-    planId?: string | null;     // Assign to a Plan instead of a specific user
+    assignedTo?: string | null;
+    planId?: string | null;
+    assignedAt?: string | null; // ISO timestamp for 24h visibility
     exercises: { name: string; sets: number; reps: number | string; weight?: number | string }[];
+}
+
+export interface TrainerDiscipline {
+    id: string;
+    trainerId: string;
+    planId: string;
+    assignedAt: string;
 }
 
 import { supabase } from '../lib/supabase';
@@ -152,6 +160,12 @@ interface GymStore {
     // Attendance Confirmation
     confirmAttendance: (classId: string) => Promise<boolean>;
 
+    // Trainer Disciplines
+    trainerDisciplines: TrainerDiscipline[];
+    assignTrainerDiscipline: (trainerId: string, planId: string) => Promise<boolean>;
+    removeTrainerDiscipline: (disciplineId: string) => Promise<boolean>;
+    getTrainerDisciplines: (trainerId: string) => Promise<TrainerDiscipline[]>;
+
     // Operaciones CRUD Admin
     deleteUser: (userId: string) => Promise<void>;
     deleteClass: (classId: string) => Promise<void>;
@@ -166,6 +180,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
     routines: [],
     scheduleBlocks: [],
     membershipFreezes: [],
+    trainerDisciplines: [],
     loading: false,
 
     fetchInitialData: async () => {
@@ -218,6 +233,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
                     name: r.name,
                     assignedTo: r.assigned_to,
                     planId: r.plan_id,
+                    assignedAt: r.assigned_at || null,
                     exercises: r.exercises
                 })) : [],
                 classes: dbClasses ? dbClasses.map(c => ({
@@ -840,5 +856,47 @@ export const useGymStore = create<GymStore>((set, get) => ({
             }));
             return true;
         } catch (e: any) { console.error('Exception confirming attendance', e); return false; }
+    },
+
+    assignTrainerDiscipline: async (trainerId, planId) => {
+        try {
+            const { data, error } = await supabase
+                .from('trainer_discipline_assignments')
+                .insert([{ trainer_id: trainerId, plan_id: planId }])
+                .select().single();
+            if (error) { console.error('Error assigning discipline:', error); return false; }
+            if (data) {
+                const newDiscipline: TrainerDiscipline = {
+                    id: data.id, trainerId: data.trainer_id,
+                    planId: data.plan_id, assignedAt: data.assigned_at
+                };
+                set(state => ({ trainerDisciplines: [...state.trainerDisciplines, newDiscipline] }));
+            }
+            return true;
+        } catch (e: any) { console.error('Exception assigning discipline', e); return false; }
+    },
+
+    removeTrainerDiscipline: async (disciplineId) => {
+        try {
+            const { error } = await supabase
+                .from('trainer_discipline_assignments').delete().eq('id', disciplineId);
+            if (error) { console.error('Error removing discipline:', error); return false; }
+            set(state => ({ trainerDisciplines: state.trainerDisciplines.filter(d => d.id !== disciplineId) }));
+            return true;
+        } catch (e: any) { console.error('Exception removing discipline', e); return false; }
+    },
+
+    getTrainerDisciplines: async (trainerId) => {
+        try {
+            const { data, error } = await supabase
+                .from('trainer_discipline_assignments').select('*').eq('trainer_id', trainerId);
+            if (error || !data) return [];
+            const disciplines: TrainerDiscipline[] = data.map(d => ({
+                id: d.id, trainerId: d.trainer_id,
+                planId: d.plan_id, assignedAt: d.assigned_at
+            }));
+            set({ trainerDisciplines: disciplines });
+            return disciplines;
+        } catch (e: any) { console.error('Exception getting disciplines', e); return []; }
     }
 }));
