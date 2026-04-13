@@ -863,35 +863,31 @@ export default function TrainerDashboard() {
             </div>
         </div>
 
-            {/* Mis Disciplinas */ }
-    {
-        trainerDisciplines.length > 0 && (
-            <div className="mt-8 bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl">
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2 bg-purple-500/20 rounded-lg text-purple-400">
-                        <Layers className="w-5 h-5" />
-                    </div>
-                    <h3 className="font-bold text-white text-lg">Mis Disciplinas</h3>
-                </div>
-                <div className="flex flex-wrap gap-3">
-                    {trainerDisciplines.map(d => {
-                        const plan = plans.find(p => p.id === d.planId);
-                        return (
-                            <div key={d.id} className="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-full px-4 py-2">
-                                <span className="w-2 h-2 rounded-full bg-[#39ff14]" />
-                                <span className="text-white font-medium text-sm">{plan?.name || 'Disciplina'}</span>
-                                <button
-                                    onClick={() => removeTrainerDiscipline(d.id)}
-                                    className="text-slate-500 hover:text-red-400 transition-colors ml-1">
-                                    <X className="w-3.5 h-3.5" />
-                                </button>
-                            </div>
-                        );
-                    })}
-                </div>
+            {/* Lista de últimas rutinas asignadas */}
+          {routines.slice(-3).reverse().map((routine) => (
+            <div 
+              key={routine.id} 
+              className="flex items-center justify-between p-3 rounded-lg bg-gray-800/50 border border-gray-700 hover:border-neon-green/30 transition-colors"
+            >
+              <div className="flex flex-col">
+                <span className="text-sm font-medium text-white">{routine.nombre}</span>
+                <span className="text-xs text-gray-400">
+                  {routine.es_global ? 'Plan Global' : `Estudiante: ${routine.estudiante_nombre}`}
+                </span>
+              </div>
+              <button 
+                onClick={() => handleDuplicateRoutine(routine)}
+                className="p-2 text-neon-green hover:bg-neon-green/10 rounded-full transition-colors"
+                title="Duplicar rutina"
+              >
+                <Layers size={18} />
+              </button>
             </div>
-        )
-    }
-        </div >
-    );
-}
+          ))}
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default TrainerDashboard;
