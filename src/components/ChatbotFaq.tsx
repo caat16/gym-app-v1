@@ -65,6 +65,22 @@ const FLOWS: Record<string, { label: string; icon: string; message: React.ReactN
             </div>
         ),
         waText: 'Hola, quiero cambiar mi plan o categoría en GymFlow Pro.'
+    },
+    pausa: {
+        label: 'Pausar Plan',
+        icon: '❄️',
+        message: (
+            <div className="space-y-1.5">
+                <p className="font-semibold text-white">❄️ Pausar o Congelar Plan</p>
+                <ul className="text-xs text-slate-300 space-y-1 list-none">
+                    <li>✅ Ve a tu <strong>Perfil de Usuario</strong></li>
+                    <li>✅ Busca la sección <strong>"Solicitar Pausa"</strong></li>
+                    <li>✅ Elige las fechas y escribe el motivo</li>
+                    <li>⚠️ Mínimo 6 días, requiere aprobación del Admin</li>
+                </ul>
+            </div>
+        ),
+        waText: 'Hola, tengo una consulta sobre el congelamiento de mi plan en GymFlow Pro.'
     }
 };
 
@@ -207,8 +223,8 @@ export default function ChatbotFaq({ adminPhone = ADMIN_PHONE }: ChatbotFaqProps
                         {messages.map((msg, i) => (
                             <div key={i} className={`flex ${msg.from === 'user' ? 'justify-end' : 'justify-start'}`}>
                                 <div className={`max-w-[90%] px-3 py-2 rounded-xl text-sm leading-relaxed ${msg.from === 'user'
-                                        ? 'bg-[#39ff14]/20 text-[#39ff14] border border-[#39ff14]/20'
-                                        : 'bg-slate-800 text-slate-200 border border-slate-700'
+                                    ? 'bg-[#39ff14]/20 text-[#39ff14] border border-[#39ff14]/20'
+                                    : 'bg-slate-800 text-slate-200 border border-slate-700'
                                     }`}>
                                     {msg.jsx || msg.text}
                                 </div>

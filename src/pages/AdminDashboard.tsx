@@ -95,10 +95,29 @@ export default function AdminDashboard() {
                 }
             }
         }
-        const success = await createScheduleBlocks(blocks);
-        setIsGeneratingSchedule(false);
-        if (success) alert(`✅ Horarios generados exitosamente. ${blocks.length} slots creados para las próximas 4 semanas.`);
-        else alert('❌ Error al generar horarios. Por favor intenta de nuevo.');
+
+        try {
+            // Chunks of 50 to avoid payload size/timeout issues
+            const chunkSize = 50;
+            let successCount = 0;
+            for (let i = 0; i < blocks.length; i += chunkSize) {
+                const chunk = blocks.slice(i, i + chunkSize);
+                const ok = await createScheduleBlocks(chunk);
+                if (ok) successCount += chunk.length;
+            }
+            if (successCount === blocks.length) {
+                alert(`¡Se generaron con éxito ${successCount} horarios para las próximas 4 semanas!`);
+            } else if (successCount > 0) {
+                alert(`Generación parcial: se crearon ${successCount} de ${blocks.length} slots. Revisa posibles errores.`);
+            } else {
+                alert('No se pudieron generar los horarios. Verifica la conexión o permisos RLS.');
+            }
+        } catch (error) {
+            console.error('Error in batch generation:', error);
+            alert('Error crítico al generar horarios masivos.');
+        } finally {
+            setIsGeneratingSchedule(false);
+        }
     };
     const [duplicateExercises, setDuplicateExercises] = useState<any[]>([]);
 

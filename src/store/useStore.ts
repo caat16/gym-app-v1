@@ -95,6 +95,16 @@ export interface ClassSession {
     enrollments?: ClassEnrollment[]; // Detailed info for new flow
 }
 
+export interface InternalMessage {
+    id: string;
+    senderId: string;
+    receiverId: string;
+    content: string;
+    type: 'system' | 'user';
+    isRead: boolean;
+    createdAt: string;
+}
+
 export interface Routine {
     id: string;
     name: string;
@@ -165,7 +175,9 @@ interface GymStore {
     // Attendance Confirmation
     confirmAttendance: (classId: string) => Promise<boolean>;
 
-    // Trainer Disciplines
+    // Internal Chat / Notifications
+    sendInternalMessage: (message: { receiverId: string; content: string; type?: 'system' | 'user' }) => Promise<void>;
+    messages: InternalMessage[];
     trainerDisciplines: TrainerDiscipline[];
     assignTrainerDiscipline: (trainerId: string, planId: string) => Promise<boolean>;
     removeTrainerDiscipline: (disciplineId: string) => Promise<boolean>;
@@ -185,6 +197,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
     routines: [],
     scheduleBlocks: [],
     membershipFreezes: [],
+    messages: [],
     trainerDisciplines: [],
     loading: false,
 
@@ -637,6 +650,18 @@ export const useGymStore = create<GymStore>((set, get) => ({
                 .update({ is_confirmed: true, confirmed_at: new Date().toISOString() })
                 .match({ block_id: blockId, user_id: state.currentUser.id });
             if (!error) {
+                // Find block to get time for message
+                const block = state.scheduleBlocks.find(b => b.id === blockId);
+                const blockTime = block ? `${block.date} a las ${block.startTime}` : 'sesión de hoy';
+
+                // Send system message to Admin/PowerUser (for now we target the first admin found or a default)
+                // In a real scenario, we'd target specific trainers or all admins
+                await state.sendInternalMessage({
+                    receiverId: '00000000-0000-0000-0000-000000000000', // Shorthand for all admins or handled by DB trigger
+                    content: `📢 Confirmación: El alumno ${state.currentUser.name} ha confirmado su asistencia para la sesión de Power Plate: ${blockTime}.`,
+                    type: 'system'
+                });
+
                 set((state) => ({
                     scheduleBlocks: state.scheduleBlocks.map(b =>
                         b.id === blockId
@@ -651,6 +676,22 @@ export const useGymStore = create<GymStore>((set, get) => ({
             }
         } catch (e) {
             console.error('Error confirming schedule block', e);
+        }
+    },
+
+    sendInternalMessage: async ({ receiverId, content, type = 'system' }) => {
+        const state = get();
+        if (!state.currentUser) return;
+        try {
+            const { error } = await supabase.from('internal_messages').insert([{
+                sender_id: state.currentUser.id,
+                receiver_id: receiverId,
+                content,
+                type
+            }]);
+            if (error) console.error('Error sending internal message', error);
+        } catch (e) {
+            console.error('Exception sending internal message', e);
         }
     },
     // --- END Power Plate Enrollments ---
