@@ -66,7 +66,7 @@ export default function AdminDashboard() {
         );
         if (!confirmed) return;
         setIsGeneratingSchedule(true);
-        const blocks: { dayOfWeek: number; startTime: string; endTime: string; capacity: number }[] = [];
+        const blocks: { dayOfWeek: number; date: string; startTime: string; endTime: string; capacity: number }[] = [];
         const today = new Date();
         // L-V morning (6:00-10:30), L-V afternoon (16:00-20:00), Sat (7:00-11:30)
         const weekdayMorningSlots: [string, string][] = [
@@ -86,11 +86,12 @@ export default function AdminDashboard() {
                 const d = new Date(today);
                 d.setDate(today.getDate() + week * 7 + dayOffset);
                 const dow = d.getDay(); // 0=Sun,1=Mon,...,6=Sat
+                const dateStr = d.toISOString().split('T')[0];
                 if (dow >= 1 && dow <= 5) {
-                    weekdayMorningSlots.forEach(([s, e]) => blocks.push({ dayOfWeek: dow, startTime: s, endTime: e, capacity: 3 }));
-                    weekdayAfternoonSlots.forEach(([s, e]) => blocks.push({ dayOfWeek: dow, startTime: s, endTime: e, capacity: 3 }));
+                    weekdayMorningSlots.forEach(([s, e]) => blocks.push({ dayOfWeek: dow, date: dateStr, startTime: s, endTime: e, capacity: 3 }));
+                    weekdayAfternoonSlots.forEach(([s, e]) => blocks.push({ dayOfWeek: dow, date: dateStr, startTime: s, endTime: e, capacity: 3 }));
                 } else if (dow === 6) {
-                    saturdaySlots.forEach(([s, e]) => blocks.push({ dayOfWeek: 6, startTime: s, endTime: e, capacity: 3 }));
+                    saturdaySlots.forEach(([s, e]) => blocks.push({ dayOfWeek: 6, date: dateStr, startTime: s, endTime: e, capacity: 3 }));
                 }
             }
         }
@@ -460,10 +461,9 @@ export default function AdminDashboard() {
 
                 {/* ─── Notificaciones Power Plate (Confirmaciones de hoy) ─── */}
                 {(() => {
-                    const todayStr = new Date().toDateString();
-                    const todayConfirmed = classes.filter(c => {
-                        const cDate = new Date(c.startTime).toDateString();
-                        return cDate === todayStr && c.enrollments?.some(e => e.isConfirmed);
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    const todayConfirmed = scheduleBlocks.filter(b => {
+                        return b.date === todayStr && b.enrolledStudents?.some(e => e.isConfirmed);
                     });
                     if (todayConfirmed.length === 0) return null;
                     return (
@@ -473,15 +473,18 @@ export default function AdminDashboard() {
                                 <h3 className="font-semibold text-white">Confirmaciones Power Plate — Hoy</h3>
                             </div>
                             <div className="space-y-2">
-                                {todayConfirmed.map(cls => {
-                                    const confirmed = cls.enrollments?.filter(e => e.isConfirmed) || [];
+                                {todayConfirmed.map(block => {
+                                    const confirmed = block.enrolledStudents?.filter(e => e.isConfirmed) || [];
+                                    const occupancy = `${confirmed.length}/${block.capacity}`;
                                     return (
-                                        <div key={cls.id} className="flex items-center justify-between bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5">
+                                        <div key={block.id} className="flex items-center justify-between bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5">
                                             <div>
-                                                <p className="text-white font-medium text-sm">{cls.name}</p>
-                                                <p className="text-xs text-slate-400">{new Date(cls.startTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</p>
+                                                <p className="text-white font-medium text-sm">Sesión Power Plate</p>
+                                                <p className="text-xs text-slate-400">{block.startTime}</p>
                                             </div>
-                                            <span className="text-xs font-bold text-[#39ff14] bg-[#39ff14]/10 px-2.5 py-1 rounded-full">{confirmed.length} confirmado{confirmed.length !== 1 ? 's' : ''}</span>
+                                            <span className="text-xs font-bold text-[#39ff14] bg-[#39ff14]/10 px-2.5 py-1 rounded-full">
+                                                {occupancy} confirmado{confirmed.length !== 1 ? 's' : ''}
+                                            </span>
                                         </div>
                                     );
                                 })}

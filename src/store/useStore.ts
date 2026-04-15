@@ -39,9 +39,11 @@ export interface PersonalRecord {
 export interface ScheduleBlock {
     id: string;
     dayOfWeek: number; // 0=Sun, 1=Mon, etc.
+    date?: string; // YYYY-MM-DD for specific daily slots
     startTime: string; // HH:mm format
     endTime: string;
     capacity: number;
+    enrolledStudents?: { id: string; isConfirmed: boolean }[];
 }
 
 export interface User {
@@ -146,6 +148,9 @@ interface GymStore {
     createScheduleBlock: (block: Omit<ScheduleBlock, 'id'>) => Promise<boolean>;
     createScheduleBlocks: (blocks: Omit<ScheduleBlock, 'id'>[]) => Promise<boolean>;
     deleteScheduleBlock: (blockId: string) => Promise<void>;
+    enrollScheduleBlock: (blockId: string) => Promise<void>;
+    cancelScheduleBlock: (blockId: string) => Promise<void>;
+    confirmScheduleBlock: (blockId: string) => Promise<void>;
 
     // Profile
     updateUserProfile: (userId: string, data: { name?: string; email?: string; phone?: string }) => Promise<boolean>;
@@ -206,8 +211,8 @@ export const useGymStore = create<GymStore>((set, get) => ({
             // Descargar Usuarios Básicos con suscripciones
             const { data: dbUsers } = await supabase.from('users').select('*, subscriptions(*)');
 
-            // Descargar Schedule Blocks
-            const { data: dbBlocks } = await supabase.from('schedule_blocks').select('*');
+            // Descargar Schedule Blocks con inscripciones y confirmaciones
+            const { data: dbBlocks } = await supabase.from('schedule_blocks').select('*, student_schedule_blocks(user_id, is_confirmed, confirmed_at)');
 
             // Filtrar planes duplicados por nombre como medida defensiva
             const uniquePlans = dbPlans ? dbPlans.reduce((acc, current) => {
@@ -224,9 +229,15 @@ export const useGymStore = create<GymStore>((set, get) => ({
                 scheduleBlocks: dbBlocks ? dbBlocks.map(b => ({
                     id: b.id,
                     dayOfWeek: b.day_of_week,
+                    date: b.date || undefined,
                     startTime: b.start_time,
                     endTime: b.end_time,
-                    capacity: b.capacity
+                    capacity: b.capacity,
+                    enrolledStudents: b.student_schedule_blocks ? b.student_schedule_blocks.map((eb: any) => ({
+                        id: eb.user_id,
+                        isConfirmed: eb.is_confirmed || false,
+                        confirmedAt: eb.confirmed_at || undefined
+                    })) : []
                 })) : [],
                 routines: dbRoutines ? dbRoutines.map(r => ({
                     id: r.id,
@@ -331,16 +342,48 @@ export const useGymStore = create<GymStore>((set, get) => ({
         if (!state.currentUser) return;
 
         try {
-            const newSub = {
+            // Check for an existing active/expiring subscription to extend
+            const { data: existingSubs } = await supabase
+                .from('subscriptions')
+                .select('*')
+                .eq('user_id', state.currentUser.id)
+                .in('status', ['active', 'expiring_soon'])
+                .order('end_date', { ascending: false })
+                .limit(1);
+
+            const currentSub = existingSubs && existingSubs.length > 0 ? existingSubs[0] : null;
+
+            let startDate = new Date();
+            let endDate = addDays(startDate, 30);
+            let targetSubId = null;
+
+            if (currentSub) {
+                targetSubId = currentSub.id;
+                const currentEndDate = new Date(currentSub.end_date);
+                if (currentEndDate > new Date()) {
+                    startDate = new Date(currentSub.start_date);
+                    // Add 30 days to the FUTURE end date
+                    endDate = addDays(currentEndDate, 30);
+                } else {
+                    startDate = new Date();
+                    endDate = addDays(startDate, 30);
+                }
+            }
+
+            const subData = {
                 user_id: state.currentUser.id,
                 plan_id: planId,
                 sessions: sessions || null,
-                start_date: new Date().toISOString(),
-                end_date: addDays(new Date(), 30).toISOString(),
+                start_date: startDate.toISOString(),
+                end_date: endDate.toISOString(),
                 status: 'active'
             };
 
-            await supabase.from('subscriptions').insert([newSub]);
+            if (targetSubId) {
+                await supabase.from('subscriptions').update(subData).eq('id', targetSubId);
+            } else {
+                await supabase.from('subscriptions').insert([subData]);
+            }
 
             if (selectedBlockIds && selectedBlockIds.length > 0) {
                 const blockInserts = selectedBlockIds.map(blockId => ({
@@ -358,10 +401,10 @@ export const useGymStore = create<GymStore>((set, get) => ({
                 currentUser: {
                     ...state.currentUser,
                     subscription: {
-                        planId: newSub.plan_id,
-                        startDate: newSub.start_date,
-                        endDate: newSub.end_date,
-                        status: newSub.status as 'active',
+                        planId: subData.plan_id,
+                        startDate: subData.start_date,
+                        endDate: subData.end_date,
+                        status: subData.status as 'active',
                         sessions: sessions || undefined
                     },
                     scheduleBlocks: selectedBlockIds && selectedBlockIds.length > 0
@@ -544,6 +587,73 @@ export const useGymStore = create<GymStore>((set, get) => ({
             console.error('Error canceling class', error);
         }
     },
+
+    // --- Power Plate (Schedule Blocks) Enrollments ---
+    enrollScheduleBlock: async (blockId: string) => {
+        const state = get();
+        if (!state.currentUser) return;
+        try {
+            const { error } = await supabase.from('student_schedule_blocks').insert([
+                { block_id: blockId, user_id: state.currentUser.id, is_confirmed: false }
+            ]);
+            if (!error) {
+                set((state) => ({
+                    scheduleBlocks: state.scheduleBlocks.map(b =>
+                        b.id === blockId
+                            ? { ...b, enrolledStudents: [...(b.enrolledStudents || []), { id: state.currentUser!.id, isConfirmed: false }] }
+                            : b
+                    )
+                }));
+            }
+        } catch (e) {
+            console.error('Error booking schedule block', e);
+        }
+    },
+    cancelScheduleBlock: async (blockId: string) => {
+        const state = get();
+        if (!state.currentUser) return;
+        try {
+            const { error } = await supabase.from('student_schedule_blocks')
+                .delete()
+                .match({ block_id: blockId, user_id: state.currentUser.id });
+            if (!error) {
+                set((state) => ({
+                    scheduleBlocks: state.scheduleBlocks.map(b =>
+                        b.id === blockId
+                            ? { ...b, enrolledStudents: b.enrolledStudents?.filter(e => e.id !== state.currentUser!.id) || [] }
+                            : b
+                    )
+                }));
+            }
+        } catch (e) {
+            console.error('Error canceling schedule block', e);
+        }
+    },
+    confirmScheduleBlock: async (blockId: string) => {
+        const state = get();
+        if (!state.currentUser) return;
+        try {
+            const { error } = await supabase.from('student_schedule_blocks')
+                .update({ is_confirmed: true, confirmed_at: new Date().toISOString() })
+                .match({ block_id: blockId, user_id: state.currentUser.id });
+            if (!error) {
+                set((state) => ({
+                    scheduleBlocks: state.scheduleBlocks.map(b =>
+                        b.id === blockId
+                            ? {
+                                ...b, enrolledStudents: b.enrolledStudents?.map(e =>
+                                    e.id === state.currentUser!.id ? { ...e, isConfirmed: true, confirmedAt: new Date().toISOString() } : e
+                                ) || []
+                            }
+                            : b
+                    )
+                }));
+            }
+        } catch (e) {
+            console.error('Error confirming schedule block', e);
+        }
+    },
+    // --- END Power Plate Enrollments ---
     addPersonalRecord: async (studentId, record) => {
         try {
             const newRecord = {
@@ -673,6 +783,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
         try {
             const dbBlocks = blocks.map(block => ({
                 day_of_week: block.dayOfWeek,
+                date: block.date || null,
                 start_time: block.startTime,
                 end_time: block.endTime,
                 capacity: block.capacity
@@ -687,9 +798,11 @@ export const useGymStore = create<GymStore>((set, get) => ({
                 const newLocalBlocks = data.map(d => ({
                     id: d.id,
                     dayOfWeek: d.day_of_week,
+                    date: d.date || undefined,
                     startTime: d.start_time,
                     endTime: d.end_time,
-                    capacity: d.capacity
+                    capacity: d.capacity,
+                    enrolledStudents: []
                 }));
                 set((state) => ({
                     scheduleBlocks: [...state.scheduleBlocks, ...newLocalBlocks]

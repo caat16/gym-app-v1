@@ -1,17 +1,21 @@
 import { useState, useMemo } from 'react';
 import { useGymStore } from '../store/useStore';
 import { differenceInDays } from 'date-fns';
-import { AlertTriangle, Activity, Target, Dumbbell, Trophy, Plus, X, BarChart3, TrendingUp, Snowflake, CheckCircle2, MessageCircle } from 'lucide-react';
+import { AlertTriangle, Activity, Target, Dumbbell, Trophy, Plus, X, BarChart3, TrendingUp, Snowflake, CheckCircle2, MessageCircle, Calendar } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import ChatbotFaq from '../components/ChatbotFaq';
 import ExpiryAlertModal from '../components/ExpiryAlertModal';
 import WhatsAppContactButton from '../components/WhatsAppContactButton';
 
 export default function StudentDashboard() {
-    const { currentUser, addBiometrics, addPersonalRecord, requestFreeze, confirmAttendance } = useGymStore();
+    const {
+        currentUser, addBiometrics, addPersonalRecord,
+        requestFreeze, confirmAttendance, scheduleBlocks,
+        enrollScheduleBlock, cancelScheduleBlock, confirmScheduleBlock
+    } = useGymStore();
 
     // Tabs
-    const [activeTab, setActiveTab] = useState<'overview' | 'evolution'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'evolution' | 'agenda'>('overview');
 
     // Modals state
     const [showBiometricsModal, setShowBiometricsModal] = useState(false);
@@ -157,6 +161,14 @@ export default function StudentDashboard() {
                     >
                         <TrendingUp className="w-4 h-4" /> Mi Evolución
                     </button>
+                    {isPowerPlatePlan && (
+                        <button
+                            onClick={() => setActiveTab('agenda')}
+                            className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2 rounded-lg font-medium transition-colors ${activeTab === 'agenda' ? 'bg-[#39ff14] text-slate-900 shadow-lg shadow-[#39ff14]/20' : 'text-slate-400 hover:text-slate-200'}`}
+                        >
+                            <Calendar className="w-4 h-4" /> Mi Agenda
+                        </button>
+                    )}
                 </div>
             </header>
 
@@ -336,6 +348,110 @@ export default function StudentDashboard() {
                                 </div>
                             );
                         })}
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'agenda' && isPowerPlatePlan && (
+                <div className="space-y-6 animate-fade-in">
+                    <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                            <Calendar className="w-5 h-5 text-[#39ff14]" /> Agenda Power Plate
+                        </h3>
+                        <div className="text-xs text-slate-400 bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
+                            Próximas 4 semanas
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {(() => {
+                            // Sort blocks by date and time
+                            const sortedBlocks = [...scheduleBlocks]
+                                .filter(b => b.date && new Date(b.date) >= new Date(new Date().setHours(0, 0, 0, 0)))
+                                .sort((a, b) => {
+                                    const dateCompare = a.date!.localeCompare(b.date!);
+                                    return dateCompare !== 0 ? dateCompare : a.startTime.localeCompare(b.startTime);
+                                });
+
+                            // Grouping by date for better UI
+                            const grouped: Record<string, typeof sortedBlocks> = {};
+                            sortedBlocks.forEach(b => {
+                                if (!grouped[b.date!]) grouped[b.date!] = [];
+                                grouped[b.date!].push(b);
+                            });
+
+                            return Object.keys(grouped).slice(0, 14).map(date => ( // Show 2 weeks
+                                <div key={date} className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5 shadow-lg">
+                                    <h4 className="text-sm font-bold text-[#39ff14] mb-4 uppercase tracking-wider flex items-center justify-between">
+                                        <span>{new Date(date + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' })}</span>
+                                        {date === new Date().toISOString().split('T')[0] && <span className="text-[10px] bg-[#39ff14]/20 px-2 py-0.5 rounded text-[#39ff14]">Hoy</span>}
+                                    </h4>
+                                    <div className="space-y-3">
+                                        {grouped[date].map(block => {
+                                            const myEnrollment = block.enrolledStudents?.find(e => e.id === currentUser.id);
+                                            const isEnrolled = !!myEnrollment;
+                                            const isConfirmed = myEnrollment?.isConfirmed;
+                                            const enrolledCount = block.enrolledStudents?.length || 0;
+                                            const isFull = enrolledCount >= block.capacity;
+
+                                            // Logic for 24h confirmation
+                                            const blockDateTime = new Date(`${block.date}T${block.startTime}`);
+                                            const hoursToStart = (blockDateTime.getTime() - new Date().getTime()) / 3600000;
+                                            const canConfirm = isEnrolled && !isConfirmed && hoursToStart <= 24 && hoursToStart > 0;
+
+                                            return (
+                                                <div key={block.id} className={`p-3 rounded-xl border transition-all ${isEnrolled ? 'bg-[#39ff14]/5 border-[#39ff14]/30' : 'bg-slate-900 border-slate-700 hover:border-slate-500'}`}>
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <span className="text-sm font-bold text-white">{block.startTime}</span>
+                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${isFull && !isEnrolled ? 'bg-red-500/10 text-red-400' : 'bg-slate-700 text-slate-300'}`}>
+                                                            {enrolledCount}/{block.capacity} Cupos
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="flex gap-2">
+                                                        {!isEnrolled ? (
+                                                            <button
+                                                                onClick={() => enrollScheduleBlock(block.id)}
+                                                                disabled={isFull}
+                                                                className={`flex-1 text-xs font-bold py-2 rounded-lg transition-colors ${isFull ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-[#39ff14]/20 text-[#39ff14] hover:bg-[#39ff14] hover:text-slate-900'}`}
+                                                            >
+                                                                Reservar
+                                                            </button>
+                                                        ) : (
+                                                            <div className="flex-1 flex flex-col gap-2">
+                                                                <div className="flex gap-2">
+                                                                    <button
+                                                                        onClick={() => cancelScheduleBlock(block.id)}
+                                                                        className="flex-1 text-xs font-bold py-2 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-lg transition-colors"
+                                                                    >
+                                                                        Cancelar
+                                                                    </button>
+                                                                    {canConfirm && (
+                                                                        <button
+                                                                            onClick={() => confirmScheduleBlock(block.id)}
+                                                                            className="flex-1 text-xs font-bold py-2 bg-blue-600 text-white hover:bg-blue-500 rounded-lg shadow-lg shadow-blue-900/20 transition-all animate-pulse"
+                                                                        >
+                                                                            Confirmar
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                                {isConfirmed ? (
+                                                                    <span className="text-[10px] text-center font-bold text-[#39ff14] bg-[#39ff14]/10 py-1 rounded">✓ Confirmado</span>
+                                                                ) : hoursToStart <= 0 ? (
+                                                                    <span className="text-[10px] text-center font-bold text-slate-500 bg-slate-800 py-1 rounded">Sesión Finalizada</span>
+                                                                ) : !canConfirm && (
+                                                                    <span className="text-[10px] text-center font-medium text-slate-400 italic">Confirma 24h antes</span>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ));
+                        })()}
                     </div>
                 </div>
             )}
