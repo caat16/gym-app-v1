@@ -78,7 +78,7 @@ export default function StudentDashboard() {
         if (r.assignedAt) {
             const assignedTime = new Date(r.assignedAt);
             const hoursSince = (now.getTime() - assignedTime.getTime()) / 3600000;
-            return hoursSince <= 24;
+            return hoursSince <= 48;
         }
         return true; // legacy routines without assignedAt are always shown
     });

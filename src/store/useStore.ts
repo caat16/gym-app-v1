@@ -105,6 +105,16 @@ export interface InternalMessage {
     createdAt: string;
 }
 
+export interface AppNotification {
+    id: string;
+    type: 'inscripcion' | 'pago' | 'cambio_plan' | 'confirmacion' | 'general';
+    title: string;
+    message: string;
+    userId?: string;
+    isRead: boolean;
+    createdAt: string;
+}
+
 export interface Routine {
     id: string;
     name: string;
@@ -187,6 +197,12 @@ interface GymStore {
     deleteUser: (userId: string) => Promise<void>;
     deleteClass: (classId: string) => Promise<void>;
     deleteRoutine: (routineId: string) => Promise<void>;
+
+    // Notifications
+    notifications: AppNotification[];
+    createNotification: (type: AppNotification['type'], title: string, message: string) => Promise<void>;
+    fetchNotifications: () => Promise<void>;
+    markNotificationRead: (notificationId: string) => Promise<void>;
 }
 
 export const useGymStore = create<GymStore>((set, get) => ({
@@ -199,6 +215,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
     membershipFreezes: [],
     messages: [],
     trainerDisciplines: [],
+    notifications: [],
     loading: false,
 
     fetchInitialData: async () => {
@@ -425,6 +442,16 @@ export const useGymStore = create<GymStore>((set, get) => ({
                         : state.currentUser.scheduleBlocks
                 }
             });
+
+            // Notification: pago/inscripción
+            const plan = state.plans.find(p => p.id === planId);
+            const notifType = currentSub ? 'pago' : 'inscripcion';
+            const notifTitle = currentSub ? 'Renovación de Plan' : 'Nueva Inscripción';
+            await get().createNotification(
+                notifType as any,
+                notifTitle,
+                `${state.currentUser.name} ${state.currentUser.lastName} se ha ${currentSub ? 'renovado en' : 'inscrito al'} plan ${plan?.name || 'Desconocido'}.`
+            );
         } catch (error) {
             console.error('Error subscribing:', error);
         }
@@ -541,7 +568,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
                     classes: [...state.classes, {
                         id: data.id,
                         name: data.name,
-                        instructor: data.instructor,
+                        instructor: data.instructor_id,
                         startTime: data.start_time,
                         endTime: data.end_time,
                         capacity: data.capacity,
@@ -565,6 +592,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
             ]);
 
             if (!error) {
+                const classObj = state.classes.find(c => c.id === classId);
                 set((state) => ({
                     classes: state.classes.map(c =>
                         c.id === classId
@@ -572,6 +600,12 @@ export const useGymStore = create<GymStore>((set, get) => ({
                             : c
                     )
                 }));
+                // Notification
+                await get().createNotification(
+                    'inscripcion',
+                    'Inscripción a Clase',
+                    `${state.currentUser.name} ${state.currentUser.lastName} se inscribió a la clase ${classObj?.name || ''}.`
+                );
             }
         } catch (error) {
             console.error('Error enrolling class', error);
@@ -661,6 +695,13 @@ export const useGymStore = create<GymStore>((set, get) => ({
                     content: `📢 Confirmación: El alumno ${state.currentUser.name} ha confirmado su asistencia para la sesión de Power Plate: ${blockTime}.`,
                     type: 'system'
                 });
+
+                // Notification
+                await get().createNotification(
+                    'confirmacion',
+                    'Confirmación de Asistencia',
+                    `${state.currentUser.name} confirmó asistencia a la sesión de Power Plate: ${blockTime}.`
+                );
 
                 set((state) => ({
                     scheduleBlocks: state.scheduleBlocks.map(b =>
@@ -829,9 +870,10 @@ export const useGymStore = create<GymStore>((set, get) => ({
                 end_time: block.endTime,
                 capacity: block.capacity
             }));
+            console.log(`[createScheduleBlocks] Inserting ${dbBlocks.length} blocks. Sample:`, dbBlocks[0]);
             const { data, error } = await supabase.from('schedule_blocks').insert(dbBlocks).select();
             if (error) {
-                console.error("Supabase Error creating blocks:", error);
+                console.error("Supabase Error creating blocks:", JSON.stringify(error, null, 2));
                 alert(`Error al crear múltiples bloques: ${error.message}`);
                 return false;
             }
@@ -1052,5 +1094,72 @@ export const useGymStore = create<GymStore>((set, get) => ({
             set({ trainerDisciplines: disciplines });
             return disciplines;
         } catch (e: any) { console.error('Exception getting disciplines', e); return []; }
+    },
+
+    // --- Notifications ---
+    createNotification: async (type, title, message) => {
+        const state = get();
+        try {
+            const { data, error } = await supabase.from('notifications').insert([{
+                type,
+                title,
+                message,
+                user_id: state.currentUser?.id || null
+            }]).select().single();
+            if (error) {
+                console.error('Error creating notification:', error);
+                return;
+            }
+            if (data) {
+                const newNotif: AppNotification = {
+                    id: data.id,
+                    type: data.type,
+                    title: data.title,
+                    message: data.message,
+                    userId: data.user_id,
+                    isRead: data.is_read,
+                    createdAt: data.created_at
+                };
+                set(state => ({ notifications: [newNotif, ...state.notifications] }));
+            }
+        } catch (e) {
+            console.error('Exception creating notification', e);
+        }
+    },
+
+    fetchNotifications: async () => {
+        try {
+            const { data, error } = await supabase
+                .from('notifications')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(30);
+            if (error || !data) return;
+            const notifs: AppNotification[] = data.map(n => ({
+                id: n.id,
+                type: n.type,
+                title: n.title,
+                message: n.message,
+                userId: n.user_id,
+                isRead: n.is_read,
+                createdAt: n.created_at
+            }));
+            set({ notifications: notifs });
+        } catch (e) {
+            console.error('Exception fetching notifications', e);
+        }
+    },
+
+    markNotificationRead: async (notificationId) => {
+        try {
+            await supabase.from('notifications').update({ is_read: true }).eq('id', notificationId);
+            set(state => ({
+                notifications: state.notifications.map(n =>
+                    n.id === notificationId ? { ...n, isRead: true } : n
+                )
+            }));
+        } catch (e) {
+            console.error('Exception marking notification read', e);
+        }
     }
 }));
