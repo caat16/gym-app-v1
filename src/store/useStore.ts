@@ -372,12 +372,11 @@ export const useGymStore = create<GymStore>((set, get) => ({
         if (!state.currentUser) return;
 
         try {
-            // Check for an existing active/expiring subscription to extend
+            // Check for ANY existing subscription (including expired) to update rather than duplicate
             const { data: existingSubs } = await supabase
                 .from('subscriptions')
                 .select('*')
                 .eq('user_id', state.currentUser.id)
-                .in('status', ['active', 'expiring_soon'])
                 .order('end_date', { ascending: false })
                 .limit(1);
 
@@ -390,11 +389,14 @@ export const useGymStore = create<GymStore>((set, get) => ({
             if (currentSub) {
                 targetSubId = currentSub.id;
                 const currentEndDate = new Date(currentSub.end_date);
-                if (currentEndDate > new Date()) {
+                const isStillActive = currentEndDate > new Date();
+
+                if (isStillActive) {
+                    // Plan still active → extend from current end date
                     startDate = new Date(currentSub.start_date);
-                    // Add 30 days to the FUTURE end date
                     endDate = addDays(currentEndDate, 30);
                 } else {
+                    // Plan expired → start fresh from today
                     startDate = new Date();
                     endDate = addDays(startDate, 30);
                 }
@@ -409,11 +411,29 @@ export const useGymStore = create<GymStore>((set, get) => ({
                 status: 'active'
             };
 
+            let dbError = null;
             if (targetSubId) {
-                await supabase.from('subscriptions').update(subData).eq('id', targetSubId);
+                const { error } = await supabase.from('subscriptions').update(subData).eq('id', targetSubId);
+                dbError = error;
             } else {
-                await supabase.from('subscriptions').insert([subData]);
+                const { error } = await supabase.from('subscriptions').insert([subData]);
+                dbError = error;
             }
+
+            if (dbError) {
+                console.error('Error writing subscription:', dbError);
+                alert(`Error al procesar la suscripción: ${dbError.message}`);
+                return;
+            }
+
+            // Build the new subscription object
+            const newSubscription = {
+                planId: subData.plan_id,
+                startDate: subData.start_date,
+                endDate: subData.end_date,
+                status: subData.status as 'active',
+                sessions: sessions || undefined
+            };
 
             if (selectedBlockIds && selectedBlockIds.length > 0) {
                 const blockInserts = selectedBlockIds.map(blockId => ({
@@ -426,22 +446,21 @@ export const useGymStore = create<GymStore>((set, get) => ({
                 }
             }
 
-            // Update local state optimistic
-            set({
+            // Update BOTH currentUser AND the users[] array so admin views reflect the change
+            set((prev) => ({
                 currentUser: {
-                    ...state.currentUser,
-                    subscription: {
-                        planId: subData.plan_id,
-                        startDate: subData.start_date,
-                        endDate: subData.end_date,
-                        status: subData.status as 'active',
-                        sessions: sessions || undefined
-                    },
+                    ...prev.currentUser!,
+                    subscription: newSubscription,
                     scheduleBlocks: selectedBlockIds && selectedBlockIds.length > 0
                         ? selectedBlockIds
-                        : state.currentUser.scheduleBlocks
-                }
-            });
+                        : prev.currentUser!.scheduleBlocks
+                },
+                users: prev.users.map(u =>
+                    u.id === prev.currentUser!.id
+                        ? { ...u, subscription: newSubscription }
+                        : u
+                )
+            }));
 
             // Notification: pago/inscripción
             const plan = state.plans.find(p => p.id === planId);
@@ -450,7 +469,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
             await get().createNotification(
                 notifType as any,
                 notifTitle,
-                `${state.currentUser.name} ${state.currentUser.lastName} se ha ${currentSub ? 'renovado en' : 'inscrito al'} plan ${plan?.name || 'Desconocido'}.`
+                `${state.currentUser.name} ${state.currentUser.lastName} se ha ${currentSub ? 'renovado en' : 'inscrito al'} plan ${plan?.name || 'Desconocido'}. Nueva fecha de vencimiento: ${endDate.toLocaleDateString('es-ES')}.`
             );
         } catch (error) {
             console.error('Error subscribing:', error);
