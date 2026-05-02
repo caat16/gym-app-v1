@@ -40,7 +40,11 @@ export default function StudentDashboard() {
     const subEndDate = currentUser.subscription?.endDate ? new Date(currentUser.subscription.endDate) : null;
     const daysRemaining = subEndDate ? differenceInDays(subEndDate, new Date()) : 0;
     const isExpiringSoon = daysRemaining > 0 && daysRemaining <= 5;
-    const isPowerPlatePlan = currentPlan?.name?.toLowerCase().includes('power plate') || false;
+    const isPowerPlatePlan = (
+        currentPlan?.name?.toLowerCase().includes('power plate') ||
+        currentPlan?.name?.toLowerCase().includes('híbrido') ||
+        currentPlan?.name?.toLowerCase().includes('hibrido')
+    ) || false;
     const sessionsTotal = currentUser.subscription?.sessions || 0;
     const sessionsUsed = 0; // would come from subscription.sessions_used
     const sessionsRemaining = Math.max(0, sessionsTotal - sessionsUsed);

@@ -57,6 +57,30 @@ export default function AdminDashboard() {
 
     // --- Power Plate Auto-Schedule Generator ---
     const [isGeneratingSchedule, setIsGeneratingSchedule] = useState(false);
+    const [isClearingBlocks, setIsClearingBlocks] = useState(false);
+
+    const handleClearOldBlocks = async () => {
+        const confirmed = window.confirm(
+            '¿Eliminar TODOS los bloques de Power Plate? Esto limpiará los horarios generados anteriormente.\n' +
+            'Después podrás generar la nueva semana de horarios.'
+        );
+        if (!confirmed) return;
+        setIsClearingBlocks(true);
+        try {
+            const { supabase } = await import('../lib/supabase');
+            const { error } = await supabase.from('schedule_blocks').delete().not('id', 'is', null);
+            if (!error) {
+                // Reload to clear from local state
+                window.location.reload();
+            } else {
+                alert('Error al limpiar bloques: ' + error.message);
+            }
+        } catch (e: any) {
+            alert('Error: ' + e.message);
+        } finally {
+            setIsClearingBlocks(false);
+        }
+    };
 
     const handleGeneratePowerPlateSchedule = async () => {
         const confirmed = window.confirm(
@@ -319,14 +343,21 @@ export default function AdminDashboard() {
                         <div className="p-2 bg-[#39ff14]/10 rounded-lg text-[#39ff14]"><Zap className="w-5 h-5" /></div>
                         <div>
                             <h3 className="font-semibold text-white">Generador de Horarios Power Plate</h3>
-                            <p className="text-xs text-slate-400 mt-0.5">Crea todos los slots de las próximas 4 semanas (L-V 6-10:30, 16-20h · Sáb 7-11:30h · cupo máx. 3)</p>
+                            <p className="text-xs text-slate-400 mt-0.5">Crea todos los slots de la próxima semana (L-V 6-10:30, 16-20h · Sáb 7-11:30h · cupo máx. 3)</p>
                         </div>
                     </div>
-                    <button onClick={handleGeneratePowerPlateSchedule} disabled={isGeneratingSchedule}
-                        className="flex-shrink-0 flex items-center gap-2 bg-[#39ff14]/20 text-[#39ff14] hover:bg-[#39ff14] hover:text-slate-900 font-bold px-4 py-2.5 rounded-xl transition-colors disabled:opacity-50 text-sm">
-                        <Zap className="w-4 h-4" />
-                        {isGeneratingSchedule ? 'Generando...' : 'Generar 4 Semanas'}
-                    </button>
+                    <div className="flex gap-2 flex-shrink-0">
+                        <button onClick={handleClearOldBlocks} disabled={isClearingBlocks}
+                            className="flex items-center gap-2 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white font-bold px-3 py-2.5 rounded-xl transition-colors disabled:opacity-50 text-sm">
+                            <Trash2 className="w-4 h-4" />
+                            {isClearingBlocks ? 'Limpiando...' : 'Limpiar Bloques'}
+                        </button>
+                        <button onClick={handleGeneratePowerPlateSchedule} disabled={isGeneratingSchedule}
+                            className="flex items-center gap-2 bg-[#39ff14]/20 text-[#39ff14] hover:bg-[#39ff14] hover:text-slate-900 font-bold px-4 py-2.5 rounded-xl transition-colors disabled:opacity-50 text-sm">
+                            <Zap className="w-4 h-4" />
+                            {isGeneratingSchedule ? 'Generando...' : 'Generar Semana'}
+                        </button>
+                    </div>
                 </div>
 
                 {/* ─── Filtros de Retención ─── */}
