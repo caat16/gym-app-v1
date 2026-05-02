@@ -359,15 +359,16 @@ export default function StudentDashboard() {
                             <Calendar className="w-5 h-5 text-[#39ff14]" /> Agenda Power Plate
                         </h3>
                         <div className="text-xs text-slate-400 bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
-                            Próximas 4 semanas
+                            Próxima semana
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {(() => {
-                            // Sort blocks by date and time
+                            // Use string comparison (YYYY-MM-DD) to avoid UTC timezone offset issues
+                            const todayStr = new Date().toISOString().split('T')[0];
                             const sortedBlocks = [...scheduleBlocks]
-                                .filter(b => b.date && new Date(b.date) >= new Date(new Date().setHours(0, 0, 0, 0)))
+                                .filter(b => b.date && b.date >= todayStr)
                                 .sort((a, b) => {
                                     const dateCompare = a.date!.localeCompare(b.date!);
                                     return dateCompare !== 0 ? dateCompare : a.startTime.localeCompare(b.startTime);
@@ -380,7 +381,7 @@ export default function StudentDashboard() {
                                 grouped[b.date!].push(b);
                             });
 
-                            return Object.keys(grouped).slice(0, 14).map(date => ( // Show 2 weeks
+                            return Object.keys(grouped).map(date => ( // All days in generated week
                                 <div key={date} className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5 shadow-lg">
                                     <h4 className="text-sm font-bold text-[#39ff14] mb-4 uppercase tracking-wider flex items-center justify-between">
                                         <span>{new Date(date + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' })}</span>

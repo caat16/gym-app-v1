@@ -697,18 +697,28 @@ export const useGymStore = create<GymStore>((set, get) => ({
             return;
         }
 
-        // Validate plan type allows Power Plate
-        const plan = state.plans.find(p => p.id === sub.planId);
-        const isPowerPlateEligible = plan?.name?.toLowerCase().includes('power plate') ||
-            plan?.name?.toLowerCase().includes('híbrido') ||
-            plan?.name?.toLowerCase().includes('hibrido');
-        if (!isPowerPlateEligible) {
-            alert('Tu plan actual no incluye sesiones de Power Plate.');
-            return;
+        // If plans not yet loaded (race condition), fetch first
+        let plans = get().plans;
+        if (plans.length === 0) {
+            await get().fetchInitialData();
+            plans = get().plans;
+        }
+
+        // Validate plan type allows Power Plate (only block if plan found AND not eligible)
+        const plan = plans.find(p => p.id === sub.planId);
+        if (plan) {
+            const isPowerPlateEligible =
+                plan.name.toLowerCase().includes('power plate') ||
+                plan.name.toLowerCase().includes('híbrido') ||
+                plan.name.toLowerCase().includes('hibrido');
+            if (!isPowerPlateEligible) {
+                alert('Tu plan actual no incluye sesiones de Power Plate.');
+                return;
+            }
         }
 
         // Validate capacity
-        const block = state.scheduleBlocks.find(b => b.id === blockId);
+        const block = get().scheduleBlocks.find(b => b.id === blockId);
         if (block && (block.enrolledStudents?.length || 0) >= block.capacity) {
             alert('Este horario ya está lleno. Selecciona otro horario.');
             return;

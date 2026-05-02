@@ -60,9 +60,9 @@ export default function AdminDashboard() {
 
     const handleGeneratePowerPlateSchedule = async () => {
         const confirmed = window.confirm(
-            '¿Confirmar generación de horarios Power Plate para las próximas 4 semanas?\n' +
+            '¿Confirmar generación de horarios Power Plate para la próxima semana?\n' +
             'Se crearán slots de 30 min de L-V (6:00-10:30 y 16:00-20:00) y Sábados (7:00-11:30).\n' +
-            'Cupo máximo: 3 personas por slot. Total estimado: ~376 slots.'
+            'Cupo máximo: 3 personas por slot. Total estimado: ~85 slots.'
         );
         if (!confirmed) return;
         setIsGeneratingSchedule(true);
@@ -81,7 +81,7 @@ export default function AdminDashboard() {
             ['07:00', '07:30'], ['07:30', '08:00'], ['08:00', '08:30'], ['08:30', '09:00'],
             ['09:00', '09:30'], ['09:30', '10:00'], ['10:00', '10:30'], ['10:30', '11:00'], ['11:00', '11:30']
         ];
-        for (let week = 0; week < 4; week++) {
+        for (let week = 0; week < 1; week++) {
             for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
                 const d = new Date(today);
                 d.setDate(today.getDate() + week * 7 + dayOffset);
@@ -106,7 +106,7 @@ export default function AdminDashboard() {
                 if (ok) successCount += chunk.length;
             }
             if (successCount === blocks.length) {
-                alert(`¡Se generaron con éxito ${successCount} horarios para las próximas 4 semanas!`);
+                alert(`¡Se generaron con éxito ${successCount} horarios para la próxima semana!`);
             } else if (successCount > 0) {
                 alert(`Generación parcial: se crearon ${successCount} de ${blocks.length} slots. Revisa posibles errores.`);
             } else {
