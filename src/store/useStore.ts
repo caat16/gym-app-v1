@@ -305,12 +305,23 @@ export const useGymStore = create<GymStore>((set, get) => ({
                     waiverSigned: u.waiver_signed,
                     biometrics: [], // We fetch nested later if needed
                     personalRecords: [],
-                    subscription: u.subscriptions?.find((sub: any) => sub.status === 'active' || sub.status === 'expiring_soon') ? {
-                        planId: u.subscriptions.find((sub: any) => sub.status === 'active' || sub.status === 'expiring_soon').plan_id,
-                        startDate: u.subscriptions.find((sub: any) => sub.status === 'active' || sub.status === 'expiring_soon').start_date,
-                        endDate: u.subscriptions.find((sub: any) => sub.status === 'active' || sub.status === 'expiring_soon').end_date,
-                        status: u.subscriptions.find((sub: any) => sub.status === 'active' || sub.status === 'expiring_soon').status,
-                    } : undefined
+                    subscription: (() => {
+                        if (!u.subscriptions || u.subscriptions.length === 0) return undefined;
+                        // Sort descending by end_date to always pick the most recent subscription
+                        const sorted = [...u.subscriptions].sort((a: any, b: any) =>
+                            new Date(b.end_date).getTime() - new Date(a.end_date).getTime()
+                        );
+                        const best = sorted.find((s: any) => s.status === 'active' || s.status === 'expiring_soon') || sorted[0];
+                        // Auto-correct stale status: if endDate is in the future, treat as active
+                        const isStillValid = new Date(best.end_date) > new Date();
+                        const effectiveStatus = isStillValid && best.status === 'expired' ? 'active' : best.status;
+                        return {
+                            planId: best.plan_id,
+                            startDate: best.start_date,
+                            endDate: best.end_date,
+                            status: effectiveStatus,
+                        };
+                    })()
                 })) : [],
                 loading: false
             });
@@ -348,16 +359,39 @@ export const useGymStore = create<GymStore>((set, get) => ({
                 waiverSigned: data.waiver_signed,
                 biometrics: data.biometrics || [],
                 personalRecords: data.personal_records || [],
-                subscription: data.subscriptions?.[0] ? {
-                    planId: data.subscriptions[0].plan_id,
-                    startDate: data.subscriptions[0].start_date,
-                    endDate: data.subscriptions[0].end_date,
-                    status: data.subscriptions[0].status,
-                    sessions: data.subscriptions[0].sessions,
-                } : undefined
+                subscription: (() => {
+                    if (!data.subscriptions || data.subscriptions.length === 0) return undefined;
+                    // Sort descending by end_date so the most recent renewal is first
+                    const sorted = [...data.subscriptions].sort((a: any, b: any) =>
+                        new Date(b.end_date).getTime() - new Date(a.end_date).getTime()
+                    );
+                    const best = sorted.find((s: any) => s.status === 'active' || s.status === 'expiring_soon') || sorted[0];
+                    return {
+                        planId: best.plan_id,
+                        startDate: best.start_date,
+                        endDate: best.end_date,
+                        status: best.status,
+                        sessions: best.sessions,
+                    };
+                })()
             };
 
+            // --- Sync: force active if endDate is in the future but status is stale ---
+            if (loggedInUser.subscription) {
+                const endDate = new Date(loggedInUser.subscription.endDate);
+                if (endDate > new Date() && loggedInUser.subscription.status !== 'active') {
+                    loggedInUser.subscription.status = 'active';
+                    // Also fix in DB to prevent stale reads for other views
+                    await supabase.from('subscriptions')
+                        .update({ status: 'active' })
+                        .eq('user_id', loggedInUser.id)
+                        .eq('end_date', loggedInUser.subscription.endDate);
+                }
+            }
+
             set({ currentUser: loggedInUser });
+            // Refresh global users/data so admin views reflect up-to-date subscriptions
+            await get().fetchInitialData();
             return true;
         } catch (error) {
             console.error('Error in login:', error);
@@ -384,10 +418,8 @@ export const useGymStore = create<GymStore>((set, get) => ({
 
             let startDate = new Date();
             let endDate = addDays(startDate, 30);
-            let targetSubId = null;
 
             if (currentSub) {
-                targetSubId = currentSub.id;
                 const currentEndDate = new Date(currentSub.end_date);
                 const isStillActive = currentEndDate > new Date();
 
@@ -411,14 +443,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
                 status: 'active'
             };
 
-            let dbError = null;
-            if (targetSubId) {
-                const { error } = await supabase.from('subscriptions').update(subData).eq('id', targetSubId);
-                dbError = error;
-            } else {
-                const { error } = await supabase.from('subscriptions').insert([subData]);
-                dbError = error;
-            }
+            const { error: dbError } = await supabase.from('subscriptions').insert([subData]).select().single();
 
             if (dbError) {
                 console.error('Error writing subscription:', dbError);
@@ -457,10 +482,16 @@ export const useGymStore = create<GymStore>((set, get) => ({
                 },
                 users: prev.users.map(u =>
                     u.id === prev.currentUser!.id
-                        ? { ...u, subscription: newSubscription }
+                        ? {
+                            ...u,
+                            subscription: newSubscription
+                        }
                         : u
                 )
             }));
+
+            // Refresh globally to guarantee UI is perfectly in sync across the board
+            setTimeout(() => get().fetchInitialData(), 500);
 
             // Notification: pago/inscripción
             const plan = state.plans.find(p => p.id === planId);
@@ -658,6 +689,31 @@ export const useGymStore = create<GymStore>((set, get) => ({
     enrollScheduleBlock: async (blockId: string) => {
         const state = get();
         if (!state.currentUser) return;
+
+        // Validate active subscription
+        const sub = state.currentUser.subscription;
+        if (!sub || sub.status !== 'active') {
+            alert('Necesitas un plan activo para reservar sesiones de Power Plate.');
+            return;
+        }
+
+        // Validate plan type allows Power Plate
+        const plan = state.plans.find(p => p.id === sub.planId);
+        const isPowerPlateEligible = plan?.name?.toLowerCase().includes('power plate') ||
+            plan?.name?.toLowerCase().includes('híbrido') ||
+            plan?.name?.toLowerCase().includes('hibrido');
+        if (!isPowerPlateEligible) {
+            alert('Tu plan actual no incluye sesiones de Power Plate.');
+            return;
+        }
+
+        // Validate capacity
+        const block = state.scheduleBlocks.find(b => b.id === blockId);
+        if (block && (block.enrolledStudents?.length || 0) >= block.capacity) {
+            alert('Este horario ya está lleno. Selecciona otro horario.');
+            return;
+        }
+
         try {
             const { error } = await supabase.from('student_schedule_blocks').insert([
                 { block_id: blockId, user_id: state.currentUser.id, is_confirmed: false }
@@ -670,9 +726,13 @@ export const useGymStore = create<GymStore>((set, get) => ({
                             : b
                     )
                 }));
+            } else {
+                console.error('Error booking schedule block:', error);
+                alert(`Error al reservar: ${error.message}`);
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error('Error booking schedule block', e);
+            alert(`Hubo un problema al conectar con el servidor: ${e.message || 'Intenta de nuevo'}`);
         }
     },
     cancelScheduleBlock: async (blockId: string) => {
@@ -691,8 +751,9 @@ export const useGymStore = create<GymStore>((set, get) => ({
                     )
                 }));
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error('Error canceling schedule block', e);
+            alert(`Hubo un problema al cancelar: ${e.message || 'Intenta de nuevo'}`);
         }
     },
     confirmScheduleBlock: async (blockId: string) => {
@@ -734,8 +795,9 @@ export const useGymStore = create<GymStore>((set, get) => ({
                     )
                 }));
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error('Error confirming schedule block', e);
+            alert(`Hubo un problema al confirmar: ${e.message || 'Intenta de nuevo'}`);
         }
     },
 

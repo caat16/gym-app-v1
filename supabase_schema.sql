@@ -143,6 +143,31 @@ VALUES (
     TRUE
 ) ON CONFLICT (ci) DO NOTHING;
 
+-- ==========================================
+-- TABLA: schedule_blocks (Horarios de Clases Power Plate)
+-- ==========================================
+CREATE TABLE IF NOT EXISTS schedule_blocks (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    day_of_week INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
+    date DATE,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    capacity INTEGER NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- ==========================================
+-- TABLA: student_schedule_blocks (Reservas de Power Plate)
+-- ==========================================
+CREATE TABLE IF NOT EXISTS student_schedule_blocks (
+    block_id UUID NOT NULL REFERENCES schedule_blocks(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    is_confirmed BOOLEAN DEFAULT FALSE,
+    confirmed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    PRIMARY KEY (block_id, user_id)
+);
+
 -- Insertar Planes disponibles
 INSERT INTO plans (name, description, price, features) VALUES 
 ('Plan Mujeres', 'Entrenamiento enfocado en tonificación y fuerza femenina', 29.99, ARRAY['Acceso total', 'Clases grupales']),
