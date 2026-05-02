@@ -390,8 +390,9 @@ export const useGymStore = create<GymStore>((set, get) => ({
             }
 
             set({ currentUser: loggedInUser });
-            // Refresh global users/data so admin views reflect up-to-date subscriptions
-            await get().fetchInitialData();
+            // Refresh global data in the background WITHOUT blocking login
+            // Awaiting this caused loading=true to kick the user back to the login screen
+            get().fetchInitialData().catch(e => console.error('Background refresh error:', e));
             return true;
         } catch (error) {
             console.error('Error in login:', error);

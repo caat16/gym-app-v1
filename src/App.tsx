@@ -11,14 +11,15 @@ import { useGymStore } from './store/useStore';
 import PaymentGateway from './pages/PaymentGateway';
 
 function App() {
-  const { fetchInitialData, loading } = useGymStore();
+  const { fetchInitialData, loading, currentUser } = useGymStore();
   const [isInit, setIsInit] = useState(false);
 
   useEffect(() => {
     fetchInitialData().then(() => setIsInit(true));
   }, [fetchInitialData]);
 
-  if (!isInit || loading) {
+  // Only show spinner on first load (not on background refreshes after login)
+  if (!isInit && loading && !currentUser) {
     return (
       <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#39ff14]"></div>
