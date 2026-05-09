@@ -1048,7 +1048,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
             if (error) { console.error('Error updating profile:', error); return false; }
             set((state) => ({
                 users: state.users.map(u => u.id === userId ? { ...u, ...data } : u),
-                currentUser: state.currentUser!.id === userId ? { ...state.currentUser, ...data } : state.currentUser
+                currentUser: state.currentUser!.id === userId ? { ...state.currentUser!, ...data } : state.currentUser
             }));
             return true;
         } catch (e: any) { console.error('Exception updating profile', e); return false; }
