@@ -411,7 +411,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
             const { data: existingSubs } = await supabase
                 .from('subscriptions')
                 .select('*')
-                .eq('user_id', state.currentUser.id)
+                .eq('user_id', state.currentUser?.id)
                 .order('end_date', { ascending: false })
                 .limit(1);
 
@@ -436,7 +436,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
             }
 
             const subData = {
-                user_id: state.currentUser.id,
+                user_id: state.currentUser?.id,
                 plan_id: planId,
                 sessions: sessions || null,
                 start_date: startDate.toISOString(),
@@ -463,7 +463,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
 
             if (selectedBlockIds && selectedBlockIds.length > 0) {
                 const blockInserts = selectedBlockIds.map(blockId => ({
-                    user_id: state.currentUser!.id,
+                    user_id: state.currentUser?.id,
                     block_id: blockId
                 }));
                 const { error: blockError } = await supabase.from('student_schedule_blocks').insert(blockInserts);
@@ -501,7 +501,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
             await get().createNotification(
                 notifType as any,
                 notifTitle,
-                `${state.currentUser.name} ${state.currentUser.lastName} se ha ${currentSub ? 'renovado en' : 'inscrito al'} plan ${plan?.name || 'Desconocido'}. Nueva fecha de vencimiento: ${endDate.toLocaleDateString('es-ES')}.`
+                `${state.currentUser!.name} ${state.currentUser!.lastName} se ha ${currentSub ? 'renovado en' : 'inscrito al'} plan ${plan?.name || 'Desconocido'}. Nueva fecha de vencimiento: ${endDate.toLocaleDateString('es-ES')}.`
             );
         } catch (error) {
             console.error('Error subscribing:', error);
@@ -639,7 +639,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
 
         try {
             const { error } = await supabase.from('class_enrollments').insert([
-                { class_id: classId, student_id: state.currentUser.id }
+                { class_id: classId, student_id: state.currentUser?.id }
             ]);
 
             if (!error) {
@@ -647,7 +647,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
                 set((state) => ({
                     classes: state.classes.map(c =>
                         c.id === classId
-                            ? { ...c, enrolledStudents: [...c.enrolledStudents, state.currentUser!.id] }
+                            ? { ...c, enrolledStudents: [...c.enrolledStudents, state.currentUser?.id] }
                             : c
                     )
                 }));
@@ -655,7 +655,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
                 await get().createNotification(
                     'inscripcion',
                     'Inscripción a Clase',
-                    `${state.currentUser.name} ${state.currentUser.lastName} se inscribió a la clase ${classObj?.name || ''}.`
+                    `${state.currentUser!.name} ${state.currentUser!.lastName} se inscribió a la clase ${classObj?.name || ''}.`
                 );
             }
         } catch (error) {
@@ -670,13 +670,13 @@ export const useGymStore = create<GymStore>((set, get) => ({
             const { error } = await supabase
                 .from('class_enrollments')
                 .delete()
-                .match({ class_id: classId, student_id: state.currentUser.id });
+                .match({ class_id: classId, student_id: state.currentUser?.id });
 
             if (!error) {
                 set((state) => ({
                     classes: state.classes.map(c =>
                         c.id === classId
-                            ? { ...c, enrolledStudents: c.enrolledStudents.filter(id => id !== state.currentUser!.id) }
+                            ? { ...c, enrolledStudents: c.enrolledStudents.filter(id => id !== state.currentUser?.id) }
                             : c
                     )
                 }));
@@ -692,7 +692,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
         if (!state.currentUser) return;
 
         // Validate active subscription
-        const sub = state.currentUser.subscription;
+        const sub = state.currentUser!.subscription;
         if (!sub || sub.status !== 'active') {
             alert('Necesitas un plan activo para reservar sesiones de Power Plate.');
             return;
@@ -727,13 +727,13 @@ export const useGymStore = create<GymStore>((set, get) => ({
 
         try {
             const { error } = await supabase.from('student_schedule_blocks').insert([
-                { block_id: blockId, user_id: state.currentUser.id, is_confirmed: false }
+                { block_id: blockId, user_id: state.currentUser?.id, is_confirmed: false }
             ]);
             if (!error) {
                 set((state) => ({
                     scheduleBlocks: state.scheduleBlocks.map(b =>
                         b.id === blockId
-                            ? { ...b, enrolledStudents: [...(b.enrolledStudents || []), { id: state.currentUser!.id, isConfirmed: false }] }
+                            ? { ...b, enrolledStudents: [...(b.enrolledStudents || []), { id: state.currentUser?.id, isConfirmed: false }] }
                             : b
                     )
                 }));
@@ -752,12 +752,12 @@ export const useGymStore = create<GymStore>((set, get) => ({
         try {
             const { error } = await supabase.from('student_schedule_blocks')
                 .delete()
-                .match({ block_id: blockId, user_id: state.currentUser.id });
+                .match({ block_id: blockId, user_id: state.currentUser?.id });
             if (!error) {
                 set((state) => ({
                     scheduleBlocks: state.scheduleBlocks.map(b =>
                         b.id === blockId
-                            ? { ...b, enrolledStudents: b.enrolledStudents?.filter(e => e.id !== state.currentUser!.id) || [] }
+                            ? { ...b, enrolledStudents: b.enrolledStudents?.filter(e => e.id !== state.currentUser?.id) || [] }
                             : b
                     )
                 }));
@@ -773,7 +773,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
         try {
             const { error } = await supabase.from('student_schedule_blocks')
                 .update({ is_confirmed: true, confirmed_at: new Date().toISOString() })
-                .match({ block_id: blockId, user_id: state.currentUser.id });
+                .match({ block_id: blockId, user_id: state.currentUser?.id });
             if (!error) {
                 // Find block to get time for message
                 const block = state.scheduleBlocks.find(b => b.id === blockId);
@@ -783,7 +783,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
                 // In a real scenario, we'd target specific trainers or all admins
                 await state.sendInternalMessage({
                     receiverId: '00000000-0000-0000-0000-000000000000', // Shorthand for all admins or handled by DB trigger
-                    content: `📢 Confirmación: El alumno ${state.currentUser.name} ha confirmado su asistencia para la sesión de Power Plate: ${blockTime}.`,
+                    content: `📢 Confirmación: El alumno ${state.currentUser!.name} ha confirmado su asistencia para la sesión de Power Plate: ${blockTime}.`,
                     type: 'system'
                 });
 
@@ -791,7 +791,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
                 await get().createNotification(
                     'confirmacion',
                     'Confirmación de Asistencia',
-                    `${state.currentUser.name} confirmó asistencia a la sesión de Power Plate: ${blockTime}.`
+                    `${state.currentUser!.name} confirmó asistencia a la sesión de Power Plate: ${blockTime}.`
                 );
 
                 set((state) => ({
@@ -799,7 +799,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
                         b.id === blockId
                             ? {
                                 ...b, enrolledStudents: b.enrolledStudents?.map(e =>
-                                    e.id === state.currentUser!.id ? { ...e, isConfirmed: true, confirmedAt: new Date().toISOString() } : e
+                                    e.id === state.currentUser?.id ? { ...e, isConfirmed: true, confirmedAt: new Date().toISOString() } : e
                                 ) || []
                             }
                             : b
@@ -817,7 +817,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
         if (!state.currentUser) return;
         try {
             const { error } = await supabase.from('internal_messages').insert([{
-                sender_id: state.currentUser.id,
+                sender_id: state.currentUser?.id,
                 receiver_id: receiverId,
                 content,
                 type
@@ -844,8 +844,8 @@ export const useGymStore = create<GymStore>((set, get) => ({
                     if (state.currentUser?.id === studentId) {
                         return {
                             currentUser: {
-                                ...state.currentUser,
-                                personalRecords: [...state.currentUser.personalRecords, {
+                                ...state.currentUser!,
+                                personalRecords: [...state.currentUser!.personalRecords, {
                                     id: data.id,
                                     date: data.date,
                                     exerciseName: data.exercise_name,
@@ -879,14 +879,14 @@ export const useGymStore = create<GymStore>((set, get) => ({
                     if (state.currentUser?.id === studentId) {
                         return {
                             currentUser: {
-                                ...state.currentUser,
+                                ...state.currentUser!,
                                 biometrics: [{
                                     id: dbData.id,
                                     date: dbData.date,
                                     weight: dbData.weight,
                                     height: dbData.height,
                                     bmi: dbData.bmi
-                                }, ...state.currentUser.biometrics]
+                                }, ...state.currentUser!.biometrics]
                             }
                         };
                     }
@@ -909,7 +909,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
             const { error } = await supabase
                 .from('class_enrollments')
                 .update({ status: status })
-                .match({ class_id: classId, student_id: state.currentUser.id });
+                .match({ class_id: classId, student_id: state.currentUser?.id });
 
             if (!error) {
                 // Update local state if needed
@@ -1061,7 +1061,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
             const autoEndAt = new Date(freezeStart);
             autoEndAt.setMonth(autoEndAt.getMonth() + 1);
             const payload = {
-                user_id: state.currentUser.id,
+                user_id: state.currentUser?.id,
                 freeze_start: freezeStart,
                 freeze_end: freezeEnd,
                 auto_end_at: autoEndAt.toISOString().split('T')[0],
@@ -1127,7 +1127,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
             const { error } = await supabase.from('class_enrollments')
                 .update({ is_confirmed: true, confirmed_at: new Date().toISOString() })
                 .eq('class_id', classId)
-                .eq('student_id', state.currentUser.id);
+                .eq('student_id', state.currentUser?.id);
             if (error) { console.error('Error confirming attendance:', error); return false; }
             set((state) => ({
                 classes: state.classes.map(c => {
@@ -1135,7 +1135,7 @@ export const useGymStore = create<GymStore>((set, get) => ({
                     return {
                         ...c,
                         enrollments: c.enrollments?.map(e =>
-                            e.studentId === state.currentUser!.id
+                            e.studentId === state.currentUser?.id
                                 ? { ...e, isConfirmed: true, confirmedAt: new Date().toISOString() }
                                 : e
                         ) || []
