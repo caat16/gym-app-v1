@@ -368,14 +368,9 @@ export default function AdminDashboard() {
                     </div>
                     <div className="space-y-2 max-h-96 overflow-y-auto">
                         {scheduleBlocks
-                            .filter(block => {
-                                const today = new Date();
-                                today.setHours(0, 0, 0, 0);
-                                return new Date(block.date) >= today;
-                            })
+                            .filter(block => block.date >= new Date().toISOString().split('T')[0])
                             .sort((a, b) => {
-                                const dateCompare = new Date(a.date).getTime() - new Date(b.date).getTime();
-                                if (dateCompare !== 0) return dateCompare;
+                                if (a.date !== b.date) return a.date.localeCompare(b.date);
                                 return a.startTime.localeCompare(b.startTime);
                             })
                             .slice(0, 15)
@@ -383,9 +378,10 @@ export default function AdminDashboard() {
                                 const enrolledCount = block.enrolledStudents?.length || 0;
                                 const available = block.capacity - enrolledCount;
                                 const isFull = available === 0;
-                                const dateObj = new Date(block.date + 'T00:00:00');
+                                const [year, month, day] = block.date.split('-');
+                                const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
                                 const dayName = dateObj.toLocaleDateString('es-ES', { weekday: 'long' });
-                                const dateStr = dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+                                const dateStr = `${day}/${month}`;
 
                                 return (
                                     <div key={block.id} className={`border rounded-xl p-3 ${isFull ? 'bg-red-900/10 border-red-700/30' : 'bg-slate-900 border-slate-700'}`}>
@@ -438,16 +434,12 @@ export default function AdminDashboard() {
                                     </div>
                                 );
                             })}
-                        {(() => {
-                            const today = new Date();
-                            today.setHours(0, 0, 0, 0);
-                            return scheduleBlocks.filter(block => new Date(block.date) >= today).length === 0;
-                        })() && (
-                                <div className="text-center py-8 text-slate-400">
-                                    <CalendarDays className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                                    <p>No hay horarios generados. Usa el botón "Generar Semana" arriba.</p>
-                                </div>
-                            )}
+                        {scheduleBlocks.filter(block => block.date >= new Date().toISOString().split('T')[0]).length === 0 && (
+                            <div className="text-center py-8 text-slate-400">
+                                <CalendarDays className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                                <p>No hay horarios generados. Usa el botón "Generar Semana" arriba.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
 
