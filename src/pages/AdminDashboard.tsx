@@ -368,7 +368,11 @@ export default function AdminDashboard() {
                     </div>
                     <div className="space-y-2 max-h-96 overflow-y-auto">
                         {scheduleBlocks
-                            .filter(block => new Date(block.date) >= new Date(new Date().setHours(0, 0, 0, 0)))
+                            .filter(block => {
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                return new Date(block.date) >= today;
+                            })
                             .sort((a, b) => {
                                 const dateCompare = new Date(a.date).getTime() - new Date(b.date).getTime();
                                 if (dateCompare !== 0) return dateCompare;
@@ -379,7 +383,7 @@ export default function AdminDashboard() {
                                 const enrolledCount = block.enrolledStudents?.length || 0;
                                 const available = block.capacity - enrolledCount;
                                 const isFull = available === 0;
-                                const dateObj = new Date(block.date);
+                                const dateObj = new Date(block.date + 'T00:00:00');
                                 const dayName = dateObj.toLocaleDateString('es-ES', { weekday: 'long' });
                                 const dateStr = dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
 
@@ -434,12 +438,16 @@ export default function AdminDashboard() {
                                     </div>
                                 );
                             })}
-                        {scheduleBlocks.filter(block => new Date(block.date) >= new Date(new Date().setHours(0, 0, 0, 0))).length === 0 && (
-                            <div className="text-center py-8 text-slate-400">
-                                <CalendarDays className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                                <p>No hay horarios generados. Usa el botón "Generar Semana" arriba.</p>
-                            </div>
-                        )}
+                        {(() => {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            return scheduleBlocks.filter(block => new Date(block.date) >= today).length === 0;
+                        })() && (
+                                <div className="text-center py-8 text-slate-400">
+                                    <CalendarDays className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                                    <p>No hay horarios generados. Usa el botón "Generar Semana" arriba.</p>
+                                </div>
+                            )}
                     </div>
                 </div>
 
