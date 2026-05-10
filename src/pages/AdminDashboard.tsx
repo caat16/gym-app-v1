@@ -368,9 +368,15 @@ export default function AdminDashboard() {
                     </div>
                     <div className="space-y-2 max-h-96 overflow-y-auto">
                         {scheduleBlocks
-                            .filter(block => block.date >= new Date().toISOString().split('T')[0])
+                            .filter(block => {
+                                if (!block.date) return false;
+                                const today = new Date().toISOString().split('T')[0];
+                                return block.date >= today;
+                            })
                             .sort((a, b) => {
-                                if (a.date !== b.date) return a.date.localeCompare(b.date);
+                                const dateA = a.date || '';
+                                const dateB = b.date || '';
+                                if (dateA !== dateB) return dateA.localeCompare(dateB);
                                 return a.startTime.localeCompare(b.startTime);
                             })
                             .slice(0, 15)
@@ -378,7 +384,7 @@ export default function AdminDashboard() {
                                 const enrolledCount = block.enrolledStudents?.length || 0;
                                 const available = block.capacity - enrolledCount;
                                 const isFull = available === 0;
-                                const [year, month, day] = block.date.split('-');
+                                const [year, month, day] = (block.date || '').split('-');
                                 const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
                                 const dayName = dateObj.toLocaleDateString('es-ES', { weekday: 'long' });
                                 const dateStr = `${day}/${month}`;
@@ -434,12 +440,16 @@ export default function AdminDashboard() {
                                     </div>
                                 );
                             })}
-                        {scheduleBlocks.filter(block => block.date >= new Date().toISOString().split('T')[0]).length === 0 && (
-                            <div className="text-center py-8 text-slate-400">
-                                <CalendarDays className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                                <p>No hay horarios generados. Usa el botón "Generar Semana" arriba.</p>
-                            </div>
-                        )}
+                        {scheduleBlocks.filter(block => {
+                            if (!block.date) return false;
+                            const today = new Date().toISOString().split('T')[0];
+                            return block.date >= today;
+                        }).length === 0 && (
+                                <div className="text-center py-8 text-slate-400">
+                                    <CalendarDays className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                                    <p>No hay horarios generados. Usa el botón "Generar Semana" arriba.</p>
+                                </div>
+                            )}
                     </div>
                 </div>
 
