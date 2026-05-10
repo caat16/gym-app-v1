@@ -360,6 +360,89 @@ export default function AdminDashboard() {
                     </div>
                 </div>
 
+                {/* ─── Power Plate: Horarios con Inscripciones ─── */}
+                <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 bg-[#39ff14]/10 rounded-lg text-[#39ff14]"><CalendarDays className="w-5 h-5" /></div>
+                        <h3 className="font-semibold text-white">Horarios Power Plate - Inscripciones</h3>
+                    </div>
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {scheduleBlocks
+                            .filter(block => new Date(block.date) >= new Date(new Date().setHours(0, 0, 0, 0)))
+                            .sort((a, b) => {
+                                const dateCompare = new Date(a.date).getTime() - new Date(b.date).getTime();
+                                if (dateCompare !== 0) return dateCompare;
+                                return a.startTime.localeCompare(b.startTime);
+                            })
+                            .slice(0, 15)
+                            .map(block => {
+                                const enrolledCount = block.enrolledStudents?.length || 0;
+                                const available = block.capacity - enrolledCount;
+                                const isFull = available === 0;
+                                const dateObj = new Date(block.date);
+                                const dayName = dateObj.toLocaleDateString('es-ES', { weekday: 'long' });
+                                const dateStr = dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+
+                                return (
+                                    <div key={block.id} className={`border rounded-xl p-3 ${isFull ? 'bg-red-900/10 border-red-700/30' : 'bg-slate-900 border-slate-700'}`}>
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="text-center">
+                                                    <div className="text-xs font-medium text-slate-400 capitalize">{dayName}</div>
+                                                    <div className="text-sm font-bold text-white">{dateStr}</div>
+                                                </div>
+                                                <div className="h-8 w-px bg-slate-700"></div>
+                                                <div className="flex items-center gap-2">
+                                                    <Clock className="w-4 h-4 text-[#39ff14]" />
+                                                    <span className="font-semibold text-white">{block.startTime}</span>
+                                                    <span className="text-slate-500">-</span>
+                                                    <span className="font-semibold text-white">{block.endTime}</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <div className={`text-xs font-bold px-2.5 py-1 rounded-lg ${isFull ? 'bg-red-500/20 text-red-400' : 'bg-[#39ff14]/20 text-[#39ff14]'}`}>
+                                                    {enrolledCount}/{block.capacity} cupos
+                                                </div>
+                                                {available > 0 && (
+                                                    <div className="text-xs text-slate-400 font-medium">
+                                                        {available} disponible{available !== 1 ? 's' : ''}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {enrolledCount > 0 && (
+                                            <div className="mt-2 pt-2 border-t border-slate-700">
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {block.enrolledStudents!.map((student, idx) => {
+                                                        const user = users.find(u => u.id === student.id);
+                                                        if (!user) return null;
+                                                        return (
+                                                            <div key={idx} className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg ${student.isConfirmed ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
+                                                                <Users className="w-3 h-3" />
+                                                                <span className="font-medium">{user.name} {user.lastName}</span>
+                                                                {student.isConfirmed ? (
+                                                                    <span className="text-green-400" title="Confirmado">✓</span>
+                                                                ) : (
+                                                                    <span className="text-amber-400" title="Pendiente de confirmar">⏳</span>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        {scheduleBlocks.filter(block => new Date(block.date) >= new Date(new Date().setHours(0, 0, 0, 0))).length === 0 && (
+                            <div className="text-center py-8 text-slate-400">
+                                <CalendarDays className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                                <p>No hay horarios generados. Usa el botón "Generar Semana" arriba.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
                 {/* ─── Filtros de Retención ─── */}
                 <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
                     <div className="flex items-center gap-3 mb-4">
